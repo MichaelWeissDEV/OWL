@@ -12,14 +12,16 @@ PostgreSQL  <-  OWL API   (127.0.0.1:8765)  <-  reverse proxy (TLS)  <-  clients
 ```console
 $ git clone https://github.com/MichaelWeissDEV/owl-server.git && cd owl-server
 $ cp .env.example .env
-$ $EDITOR .env                    # POSTGRES_PASSWORD, OWL_SERVER_ADMIN_TOKEN (random, >= 24 chars)
+$ $EDITOR .env                    # POSTGRES_PASSWORD (required); OWL_SERVER_ADMIN_TOKEN is optional
 $ docker compose up -d --build
 $ curl http://127.0.0.1:8765/api/v1/ready
 {"status":"ready","revision":"0002","version":"0.1.0"}
 ```
 
-`docker compose` refuses to start if `POSTGRES_PASSWORD` or `OWL_SERVER_ADMIN_TOKEN` is missing – there are
-**no hard-coded passwords**.
+`docker compose` refuses to start if `POSTGRES_PASSWORD` is missing – there are **no hard-coded passwords**.
+`OWL_SERVER_ADMIN_TOKEN` is optional: without it the server starts **open** (no login, bound to
+`127.0.0.1`) and you secure it in the dashboard ({doc}`identity`). Add the optional dashboard with
+`docker compose --profile dashboard up -d --build` ({doc}`dashboard`).
 
 ## What the stack does
 
@@ -103,7 +105,7 @@ reproducible builds.
 
 ## Checklist
 
-- [ ] strong `POSTGRES_PASSWORD` and `OWL_SERVER_ADMIN_TOKEN`, not committed
+- [ ] strong `POSTGRES_PASSWORD`, not committed; the server **secured** (Settings → Secure this server) before it is reachable by others
 - [ ] TLS reverse proxy in front, port bound to `127.0.0.1`
 - [ ] backups of PostgreSQL tested
 - [ ] mode chosen deliberately ({doc}`auth`)

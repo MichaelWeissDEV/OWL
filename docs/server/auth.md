@@ -3,11 +3,18 @@
 Reading and writing are **separate permissions**, evaluated on the server for every request. A client or
 dashboard is never a security boundary.
 
+```{note}
+This page describes a **secured** server. A new server is *open* - no authentication, everybody is an
+administrator - until it is secured; see {doc}`identity`, which also covers LDAP/Active Directory,
+OAuth 2.0 and Kerberos/SAML through a proxy.
+```
+
 ## Who is calling
 
 | Principal | How it authenticates | Rights |
 | --- | --- | --- |
-| anonymous | no `Authorization` header | read **public** registries only |
+| open | no `Authorization` header while the server is **open** | everything (administrator) |
+| anonymous | no `Authorization` header on a secured server | read **public** registries only |
 | bootstrap admin | `Authorization: Bearer <OWL_SERVER_ADMIN_TOKEN>` | everything (compared in constant time) |
 | user | login session or personal API token | per registry via membership; `is_admin` users may do everything |
 | service token | API token without a user, limited to **one registry** | exactly the token's role in that registry |
@@ -48,8 +55,8 @@ Private skills are never listed in another registry's search or facets, and regi
 
 ## Local accounts (optional)
 
-Enable with `OWL_SERVER_LOCAL_ACCOUNTS=true`; create the first administrator with
-`owl-server create-admin NAME`.
+On by default (`OWL_SERVER_LOCAL_ACCOUNTS`). Create the first administrator in the dashboard
+(Settings → Secure this server) or with `owl-server create-admin NAME`.
 
 - Passwords are hashed with **Argon2id**; at least 12 characters, not purely lower-case letters.
   Verification takes the same work for unknown users (no user enumeration). Hashes are upgraded when the

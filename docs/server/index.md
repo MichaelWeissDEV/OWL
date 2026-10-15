@@ -3,13 +3,14 @@
 ```{admonition} Alpha
 :class: warning
 
-OWL Server is a separate project (`owl-server`, next to this repository) and is in **alpha**: the API,
+OWL Server ([github.com/MichaelWeissDEV/OWL-server](https://github.com/MichaelWeissDEV/OWL-server)) is a separate project and is in **alpha**: the API,
 database schema and configuration may still change. It is optional – the OWL CLI works fully without it.
 ```
 
 OWL Server is a self-hostable registry with a **PostgreSQL** database. It stores skills completely
 (every version, every file), speaks the HTTP API the OWL CLI already uses, and adds registries with
-access control, immutable versions, accounts, tokens, optional OpenID Connect and an audit log.
+access control, immutable versions, a web dashboard, built-in user management, optional single
+sign-on (OpenID Connect, OAuth 2.0, LDAP/Active Directory, Kerberos/SAML through a proxy) and an audit log.
 
 ```{mermaid}
 flowchart LR
@@ -37,7 +38,8 @@ server to a registry, `GET …/export` downloads a server registry in git-regist
 | --- | --- |
 | **Registry** | a named collection of skills with its own visibility (`public`/`private`) and members. The `default` registry is created automatically |
 | **Skill version** | one immutable revision, addressed by its content hash. A changed upload becomes a *new* version and the current pointer moves; pushing an old, known version again is a rollback |
-| **Mode** | `public`, `private` or `mixed` – see {doc}`auth` |
+| **Open / secured** | a new server is **open** (no login) until it is secured in the dashboard - see {doc}`identity` |
+| **Mode** | `public`, `private` or `mixed` (applies once secured) – see {doc}`auth` |
 | **Roles** | `reader` < `publisher` < `admin`, evaluated **per registry** |
 | **Principal** | who is calling: anonymous, bootstrap admin (environment token), a user (session or API token) or a service token |
 
@@ -61,6 +63,8 @@ unchanged CLI is tested against a running server (push, pull, search, facets, di
 
 deployment
 configuration
+identity
+dashboard
 auth
 oidc
 api

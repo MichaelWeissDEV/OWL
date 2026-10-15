@@ -5,6 +5,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/); versions follow
 
 ## Unreleased
 
+### Added (Phase F – dashboard and identity)
+
+- Web dashboard (React, TypeScript, Mantine): skills, versions and diffs, uploads, collections,
+  registries and members, users, service tokens, audit log, settings; light/dark, responsive, accessible.
+- Open-by-default server with a *Secure this server* step; built-in user management.
+- Identity providers: OIDC, OAuth 2.0 (GitHub preset), LDAP/Active Directory, reverse-proxy
+  authentication (Kerberos/SPNEGO, SAML, oauth2-proxy) with group-to-role mapping.
+- API for the dashboard: import (`SKILL.md`, zip), file preview, activity, user and security management.
+
 ### Added (Phase E – OWL Server, separate project `owl-server`)
 
 - PostgreSQL-backed registry server compatible with the OWL CLI: registries (public/private), immutable
