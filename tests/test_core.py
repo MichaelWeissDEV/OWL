@@ -183,3 +183,105 @@ def test_server_index_page_escapes_html(server_store):
     body = client.get("/").text
     assert "<script>alert" not in body and "&lt;script&gt;" in body
     assert "page" in client.get("/", params={"q": "page"}).text
+
+
+# -- Phase A regressions: no data loss ---------------------------------------------------------
+def test_installed_json_works_for_slotted_dataclass(tmp_path):
+    from owl.installer import list_installed
+
+    install_skill(make_skill("js"), tmp_path)
+    data = list_installed(tmp_path)[0].to_dict()
+    assert data["ref"] == "alice/js" and data["modified"] == [] and isinstance(data["path"], str)
+    import json as _json
+
+    _json.dumps(data)
+
+
+def test_replace_dir_restores_old_state_on_failure(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    from owl.fsutil import replace_dir
+
+    dest = tmp_path / "skill"
+    replace_dir(dest, {"SKILL.md": b"old"})
+    real_rename = Path.rename
+
+    def flaky(self, target):  # fail only when moving the new staging dir into place
+        if ".new-" in self.name:
+            raise OSError("disk exploded")
+        return real_rename(self, target)
+
+    monkeypatch.setattr(Path, "rename", flaky)
+    with pytest.raises(OSError):
+        replace_dir(dest, {"SKILL.md": b"new"})
+    monkeypatch.undo()
+    assert (dest / "SKILL.md").read_bytes() == b"old"
+    assert [p.name for p in tmp_path.iterdir()] == ["skill"]  # no staging/backup leftovers
+
+
+def test_replace_dir_failure_while_writing_keeps_old(tmp_path):
+    from owl.fsutil import replace_dir
+
+    dest = tmp_path / "skill"
+    replace_dir(dest, {"SKILL.md": b"old"})
+    with pytest.raises(OwlError):
+        replace_dir(dest, {"SKILL.md": b"new", "../evil": b"x"})
+    assert (dest / "SKILL.md").read_bytes() == b"old"
+    assert not (tmp_path / "evil").exists()
+
+
+def test_reinstall_refuses_to_overwrite_local_edits(tmp_path, owl_home):
+    skill = make_skill("edited")
+    dest = install_skill(skill, tmp_path)
+    (dest / "SKILL.md").write_text("my own changes")
+    (dest / "extra.txt").write_text("new file")
+    with pytest.raises(OwlError, match="local modifications"):
+        install_skill(make_skill("edited", description="v2"), tmp_path)
+    assert (dest / "SKILL.md").read_text() == "my own changes"
+    install_skill(make_skill("edited", description="v2"), tmp_path, force=True)
+    assert "v2" in (dest / "SKILL.md").read_text()
+    backups = list((owl_home / "backups" / "installs").iterdir())
+    assert len(backups) == 1 and (backups[0] / "SKILL.md").read_text() == "my own changes"
+
+
+def test_reinstall_of_unmodified_skill_is_a_noop(tmp_path):
+    skill = make_skill("same")
+    dest = install_skill(skill, tmp_path)
+    before = (dest / ".owl-install.json").stat().st_mtime_ns
+    install_skill(skill, tmp_path)
+    assert (dest / ".owl-install.json").stat().st_mtime_ns == before
+
+
+def test_uninstall_protects_modified_skill(tmp_path, owl_home):
+    dest = install_skill(make_skill("keepme"), tmp_path)
+    (dest / "SKILL.md").write_text("precious")
+    with pytest.raises(OwlError, match="modifications"):
+        uninstall_skill("keepme", tmp_path)
+    uninstall_skill("keepme", tmp_path, force=True)
+    assert not dest.exists()
+    assert any(
+        "precious" in (p / "SKILL.md").read_text()
+        for p in (owl_home / "backups" / "installs").iterdir()
+    )
+
+
+def test_directory_store_upsert_is_atomic(tmp_path, monkeypatch):
+    from owl.stores.directory import DirectoryStore
+
+    store = DirectoryStore(tmp_path)
+    store.upsert(make_skill("atomic"))
+    monkeypatch.setattr(
+        "owl.stores.directory.replace_dir", lambda *a, **k: (_ for _ in ()).throw(OSError("boom"))
+    )
+    with pytest.raises(OSError):
+        store.upsert(make_skill("atomic", description="changed"))
+    monkeypatch.undo()
+    assert DirectoryStore(tmp_path).get("alice", "atomic").description != "changed"
+
+
+def test_spec_warnings_and_description_limit(tmp_path):
+    write_skill_dir(make_skill("right-name"), tmp_path / "wrong-dir")
+    result = load_skill_dir(tmp_path / "wrong-dir")
+    assert result.valid and any("differs from skill name" in w for w in result.warnings)
+    too_long = make_skill("long", description="x" * 1025)
+    assert any("1024" in p for p in validate_skill(too_long))

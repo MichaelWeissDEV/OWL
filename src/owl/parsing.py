@@ -12,7 +12,7 @@ from typing import Any
 import yaml
 
 from owl.fsutil import SKIP_DIRS, read_tree, write_tree
-from owl.models import KNOWN_META_KEYS, Skill, validate_skill
+from owl.models import KNOWN_META_KEYS, MAX_COMPATIBILITY_LEN, Skill, validate_skill
 
 SKILL_FILE = "SKILL.md"
 META_FILE = "skill.json"
@@ -64,6 +64,8 @@ class LoadResult:
     skill: Skill
     path: Path
     problems: list[str] = field(default_factory=list)
+    #: deviations from the Agent Skills spec that do not make the skill unusable
+    warnings: list[str] = field(default_factory=list)
 
     @property
     def valid(self) -> bool:
@@ -137,7 +139,22 @@ def load_skill_dir(path: Path, default_author: str = "local") -> LoadResult:
         overlay=overlay,
     )
     problems.extend(p for p in skill_problems if p not in problems)
-    return LoadResult(skill, path, problems)
+    return LoadResult(skill, path, problems, spec_warnings(skill, path))
+
+
+def spec_warnings(skill: Skill, path: Path) -> list[str]:
+    """Agent Skills spec rules that OWL tolerates but reports."""
+    warnings: list[str] = []
+    if skill.name and path.name != skill.name:
+        warnings.append(
+            f"directory name '{path.name}' differs from skill name '{skill.name}' "
+            "(the Agent Skills spec requires them to match)"
+        )
+    frontmatter, _body, _ = split_frontmatter(skill.content)
+    compat = frontmatter.get("compatibility")
+    if isinstance(compat, str) and len(compat) > MAX_COMPATIBILITY_LEN:
+        warnings.append(f"'compatibility' is longer than {MAX_COMPATIBILITY_LEN} characters")
+    return warnings
 
 
 def find_skill_dirs(root: Path) -> list[Path]:

@@ -9,14 +9,16 @@ Layout::
 
 from __future__ import annotations
 
+import json
 import shutil
 import sys
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
 
+from owl.fsutil import replace_dir
 from owl.models import InvalidSkill, SearchQuery, Skill, SkillSummary, validate_skill
-from owl.parsing import SKILL_FILE, load_skill_dir, write_skill_dir
+from owl.parsing import META_FILE, SKILL_FILE, load_skill_dir
 from owl.stores.base import FACET_KINDS, SkillStore, filter_and_rank
 
 SKILLS_SUBDIR = "skills"
@@ -80,9 +82,12 @@ class DirectoryStore(SkillStore):
             if existing is not None and existing.sha256 == skill.sha256:
                 return existing
             dest = self._skill_dir(skill.author, skill.name)
-            if dest.exists():
-                shutil.rmtree(dest)
-            write_skill_dir(skill, dest)
+            files = dict(skill.files)
+            files[SKILL_FILE] = skill.content.encode("utf-8")
+            files[META_FILE] = (
+                json.dumps(skill.meta(), indent=2, ensure_ascii=False) + "\n"
+            ).encode("utf-8")
+            replace_dir(dest, files)
             self.refresh()
             stored = self._load_all()[(skill.author, skill.name)]
         return stored

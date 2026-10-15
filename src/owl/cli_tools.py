@@ -34,9 +34,9 @@ from owl.config import (
     load_config,
     save_config,
 )
-from owl.installer import Installed, install_skill, list_installed
+from owl.fsutil import replace_dir
+from owl.installer import Installed, backup_root, install_skill, list_installed
 from owl.models import NotFound, OwlError, Skill
-from owl.parsing import write_skill_dir
 from owl.sources import load_source
 from owl.stores import open_remote, open_store
 from owl.targets import all_targets
@@ -202,22 +202,41 @@ def update(
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Only show what would change.")
     ] = False,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force", help="Replace locally modified skills (the old copy is backed up)."
+        ),
+    ] = False,
 ) -> None:
-    """Re-install installed skills whose source has a newer version (all when no name given)."""
+    """Re-install installed skills whose source has a newer version (all when no name given).
+
+    Skills whose installed files were modified locally are skipped (exit status 1) unless --force.
+    """
     changed = 0
+    conflicts = 0
     for tname, tdir, item, new in _check(load_config(), target, directory, project, names):
         label = f"{item.ref} [dim]({tname})[/dim]"
+        modified = item.modified_files()
         if new is None:
             console.print(f"[yellow]unavailable[/yellow] {label} (source: {item.source})")
         elif new.sha256 == item.sha256:
             console.print(f"[dim]up to date[/dim]  {label}")
+        elif modified and not force:
+            conflicts += 1
+            console.print(
+                f"[yellow]modified[/yellow]  {label}: local changes in "
+                f"{escape(', '.join(modified[:5]))}; skipped (use --force, a backup is kept)"
+            )
         elif dry_run:
             console.print(f"[cyan]would update[/cyan] {label} {item.version} -> {new.version}")
         else:
-            install_skill(new, tdir, source=item.source, force=True)
+            install_skill(new, tdir, source=item.source, force=bool(modified))
             console.print(f"[green]updated[/green] {label} {item.version} -> {new.version}")
             changed += 1
     console.print(f"{changed} skill(s) updated")
+    if conflicts:
+        raise typer.Exit(1)
 
 
 # -- diff --------------------------------------------------------------------------------
@@ -308,6 +327,9 @@ def export(
     refs: Annotated[list[str] | None, typer.Argument(autocompletion=complete_ref)] = None,
     out: Annotated[Path, typer.Option("--out", "-o", help="Target directory.")] = Path("export"),
     everything: Annotated[bool, typer.Option("--all", help="Export every skill.")] = False,
+    force: Annotated[
+        bool, typer.Option("--force", help="Replace existing target directories (kept as backup).")
+    ] = False,
     layout: Annotated[
         str,
         typer.Option(
@@ -332,9 +354,16 @@ def export(
             dest = (
                 out / skill.name if layout == "flat" else out / "skills" / skill.author / skill.name
             )
-            if dest.exists():
-                shutil.rmtree(dest)
-            write_skill_dir(skill, dest, with_meta=layout == "repo")
+            if dest.exists() and not force:
+                raise OwlError(
+                    f"{dest} already exists; remove it or use --force (a backup is kept)"
+                )
+            files = dict(skill.files)
+            files["SKILL.md"] = skill.content.encode("utf-8")
+            if layout == "repo":
+                meta = json.dumps(skill.meta(), indent=2, ensure_ascii=False) + "\n"
+                files["skill.json"] = meta.encode("utf-8")
+            replace_dir(dest, files, keep_backup_in=backup_root() if dest.exists() else None)
             console.print(f"[green]exported[/green] {skill.ref} -> {dest}")
 
 

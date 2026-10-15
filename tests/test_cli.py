@@ -210,3 +210,50 @@ def test_diff_against_remote(lib, tmp_path, monkeypatch):
     result = owl("diff", "git-helper", "-r", "r", ok=False)
     assert result.exit_code == 1 and "remote text" in result.stdout
     assert stores  # keep import used
+
+
+def test_update_skips_locally_modified_installs(lib, tmp_path):
+    target = tmp_path / "skills"
+    owl("install", "alice/git-helper", "--dir", str(target))
+    (target / "git-helper" / "SKILL.md").write_text("hand edited")
+    write_skill_dir(
+        make_skill("git-helper", "alice", description="new text"), tmp_path / "v2" / "g"
+    )
+    owl("add", str(tmp_path / "v2"))
+    result = owl("update", "--dir", str(target), ok=False)
+    assert result.exit_code == 1 and "modified" in result.stdout
+    assert (target / "git-helper" / "SKILL.md").read_text() == "hand edited"
+    assert "modified" in owl("installed", "--dir", str(target)).stdout
+    assert json.loads(owl("installed", "--dir", str(target), "--json").stdout)[0]["modified"] == [
+        "SKILL.md"
+    ]
+    owl("update", "--dir", str(target), "--force")
+    assert "new text" in (target / "git-helper" / "SKILL.md").read_text()
+
+
+def test_export_refuses_to_clobber_existing_directory(lib, tmp_path):
+    out = tmp_path / "out"
+    (out / "git-helper").mkdir(parents=True)
+    (out / "git-helper" / "mine.txt").write_text("keep")
+    assert owl("export", "alice/git-helper", "-o", str(out), ok=False).exit_code != 0
+    assert (out / "git-helper" / "mine.txt").read_text() == "keep"
+    owl("export", "alice/git-helper", "-o", str(out), "--force")
+    assert (out / "git-helper" / "SKILL.md").is_file()
+
+
+def test_init_refuses_to_change_existing_origin(tmp_path):
+    repo = tmp_path / "repo"
+    gitutil.init(repo)
+    gitutil.set_remote(repo, "https://example.invalid/a.git")
+    result = owl(
+        "init",
+        "--backend",
+        "git",
+        "--location",
+        str(repo),
+        "--git-url",
+        "https://example.invalid/b.git",
+        ok=False,
+    )
+    assert result.exit_code != 0
+    assert gitutil.remote_url(repo) == "https://example.invalid/a.git"

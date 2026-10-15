@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
+import secrets
 import shutil
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 
 from owl.models import OwlError
@@ -52,16 +55,39 @@ def write_tree(dest: Path, files: dict[str, bytes]) -> None:
         target.write_bytes(data)
 
 
-def replace_dir(dest: Path, files: dict[str, bytes]) -> None:
-    """Atomically(ish) replace *dest* with a directory containing *files*."""
+def replace_dir(dest: Path, files: dict[str, bytes], *, keep_backup_in: Path | None = None) -> None:
+    """Replace *dest* with a directory containing *files* without ever losing the old one.
+
+    The new content is written to a staging directory first. The old directory is renamed (not
+    deleted) before the new one is moved into place, and renamed back if anything fails. After
+    success the old directory is removed, or moved below *keep_backup_in* when given.
+    """
     dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = Path(tempfile.mkdtemp(prefix=f".{dest.name}.", dir=dest.parent))
+    token = secrets.token_hex(4)
+    staging = Path(tempfile.mkdtemp(prefix=f".{dest.name}.new-", dir=dest.parent))
+    backup = dest.parent / f".{dest.name}.old-{token}"
+    moved_old = False
     try:
-        write_tree(tmp, files)
-        tmp.chmod(0o755)  # mkdtemp creates 0700
+        write_tree(staging, files)
+        staging.chmod(0o755)  # mkdtemp creates 0700
         if dest.exists():
-            shutil.rmtree(dest)
-        tmp.rename(dest)
+            dest.rename(backup)
+            moved_old = True
+        staging.rename(dest)
     except BaseException:
-        shutil.rmtree(tmp, ignore_errors=True)
+        if moved_old and backup.exists() and not dest.exists():
+            backup.rename(dest)  # restore the previous state
+        shutil.rmtree(staging, ignore_errors=True)
         raise
+    if moved_old:
+        if keep_backup_in is not None:
+            keep_backup_in.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+            shutil.move(str(backup), str(keep_backup_in / f"{stamp}-{dest.name}"))
+        else:
+            shutil.rmtree(backup, ignore_errors=True)
+
+
+def hash_tree(files: dict[str, bytes]) -> dict[str, str]:
+    """SHA-256 of every file, by relative path."""
+    return {path: hashlib.sha256(data).hexdigest() for path, data in sorted(files.items())}

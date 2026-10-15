@@ -12,6 +12,8 @@ from typing import Any
 NAME_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 AUTHOR_RE = re.compile(r"[a-z0-9][a-z0-9._-]*")
 MAX_NAME_LEN = 64
+MAX_DESCRIPTION_LEN = 1024
+MAX_COMPATIBILITY_LEN = 500
 MAX_TOTAL_BYTES = 20 * 1024 * 1024
 
 #: ``skill.json`` keys that map to first-class fields. Everything else is ``extra``.
@@ -240,6 +242,8 @@ def validate_skill(skill: Skill) -> list[str]:
         problems.append(f"Invalid author {skill.author!r}: use lower-case letters, digits, . _ -")
     if not skill.description.strip():
         problems.append("Missing frontmatter 'description'")
+    if len(skill.description) > MAX_DESCRIPTION_LEN:
+        problems.append(f"Description is longer than {MAX_DESCRIPTION_LEN} characters")
     if not skill.content.strip():
         problems.append("SKILL.md is empty")
     reserved = sorted({"SKILL.md", "skill.json"} & set(skill.files))

@@ -58,6 +58,11 @@ def set_remote(path: Path, url: str) -> None:
         _git(["remote", "add", "origin", url], cwd=path)
 
 
+def remote_url(path: Path) -> str | None:
+    proc = _git(["remote", "get-url", "origin"], cwd=path, check=False)
+    return proc.stdout.strip() if proc.returncode == 0 else None
+
+
 def has_remote(path: Path) -> bool:
     return _git(["remote", "get-url", "origin"], cwd=path, check=False).returncode == 0
 

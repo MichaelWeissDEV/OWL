@@ -258,6 +258,12 @@ def init(
             else:
                 gitutil.init(repo)
         if git_url:
+            current = gitutil.remote_url(repo)
+            if current and current != git_url:
+                raise OwlError(
+                    f"{repo} already has origin {current}; refusing to change it to {git_url} "
+                    "(use `git remote set-url origin ...` yourself if that is intended)"
+                )
             gitutil.set_remote(repo, git_url)
     store = open_store(cfg.store)  # creates tables / validates the connection
     store.close()
@@ -318,6 +324,8 @@ def validate(
     for r in results:
         if r.valid:
             console.print(f"[green]OK[/green]   {r.skill.ref}  ({r.path})")
+            for warning in r.warnings:
+                console.print(f"       [yellow]warning:[/yellow] {escape(warning)}")
         else:
             failed += 1
             console.print(f"[red]FAIL[/red] {r.path}")
@@ -597,12 +605,15 @@ def uninstall(
     target: TargetOpt = None,
     directory: DirOpt = None,
     project: ProjectOpt = False,
+    force: Annotated[
+        bool, typer.Option("--force", help="Also remove locally modified skills (backup kept).")
+    ] = False,
 ) -> None:
     """Remove skills that were installed by owl."""
     for tname, tdir in _target_dirs(load_config(), target, directory, project):
         for name in names:
             try:
-                dest = uninstall_skill(name, tdir)
+                dest = uninstall_skill(name, tdir, force=force)
             except OwlError as exc:
                 err_console.print(f"[yellow]{tname}:[/yellow] {escape(str(exc))}")
                 continue
@@ -623,14 +634,13 @@ def installed(
         for i in list_installed(tdir)
     ]
     if as_json:
-        typer.echo(
-            json.dumps([{**vars(i), "target": t, "path": str(i.path)} for t, i in rows], indent=2)
-        )
+        typer.echo(json.dumps([{**i.to_dict(), "target": t} for t, i in rows], indent=2))
         return
     if not rows:
         err_console.print("[yellow]Nothing installed by owl in the selected targets[/yellow]")
     for tname, i in rows:
-        typer.echo(f"{i.ref}\t{i.version}\t{tname}\t{i.path}")
+        flag = "\tmodified" if i.modified_files() else ""
+        typer.echo(f"{i.ref}\t{i.version}\t{tname}\t{i.path}{flag}")
 
 
 # -- remotes, pull and push --------------------------------------------------------------
