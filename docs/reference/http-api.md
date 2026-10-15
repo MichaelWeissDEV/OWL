@@ -6,7 +6,7 @@ Base path `/api/v1`. All bodies are JSON. The server also publishes an interacti
 ```{note}
 This page describes the API of `owl serve` (single registry, one write token). **OWL Server** is a
 superset: the same skill endpoints plus registries, versions, ETags, roles and administration - see
-{doc}`../server/api`.
+[the OWL Server documentation](https://owl-server.readthedocs.io/en/latest/reference/http-api.html).
 ```
 
 ## Authentication

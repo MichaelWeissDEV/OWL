@@ -38,8 +38,8 @@ server to a registry, `GET …/export` downloads a server registry in git-regist
 | --- | --- |
 | **Registry** | a named collection of skills with its own visibility (`public`/`private`) and members. The `default` registry is created automatically |
 | **Skill version** | one immutable revision, addressed by its content hash. A changed upload becomes a *new* version and the current pointer moves; pushing an old, known version again is a rollback |
-| **Open / secured** | a new server is **open** (no login) until it is secured in the dashboard - see {doc}`identity` |
-| **Mode** | `public`, `private` or `mixed` (applies once secured) – see {doc}`auth` |
+| **Open / secured** | a new server is **open** (no login) until it is secured in the dashboard - see the server documentation |
+| **Mode** | `public`, `private` or `mixed` (applies once secured) – see the server documentation |
 | **Roles** | `reader` < `publisher` < `admin`, evaluated **per registry** |
 | **Principal** | who is calling: anonymous, bootstrap admin (environment token), a user (session or API token) or a service token |
 
@@ -56,16 +56,16 @@ $ owl install secure-review -r team -t opencode
 The URL of a non-default registry is `<server>/r/<slug>`; the OWL CLI appends `/api/v1/…` itself. The
 unchanged CLI is tested against a running server (push, pull, search, facets, diff, install, versions).
 
-## Pages
+## Documentation
 
-```{toctree}
-:maxdepth: 1
+OWL Server has its own documentation site, built the same way as this one:
+**<https://owl-server.readthedocs.io>** (sources in the
+[`docs/`](https://github.com/MichaelWeissDEV/OWL-server/tree/main/docs) folder of the server repository).
 
-deployment
-configuration
-identity
-dashboard
-auth
-oidc
-api
-```
+| Topic | Where |
+| --- | --- |
+| Install and first push | *Getting started* |
+| Dashboard, users, roles | *Guide* |
+| Keycloak / OIDC, OAuth 2.0, LDAP / Active Directory, Kerberos via proxy | *Guide → Identity providers* |
+| All variables and the `ALLOW_INSECURE_…` switches | *Reference → Configuration* |
+| Docker, TLS proxy, backup, security | *Operations* |
