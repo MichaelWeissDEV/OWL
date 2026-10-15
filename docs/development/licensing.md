@@ -1,28 +1,27 @@
 # Licensing
 
-```{important}
-OWL currently has **no license file**. Without a license all rights remain with the author, which
-means others may not legally use, modify or redistribute the code. Adding a license is a decision
-only the repository owner can make - nothing has been added on their behalf.
-```
+OWL, OWL Server and the OWL Registry are licensed under the **Apache License 2.0**
+(`LICENSE` and `NOTICE` in each repository). The copyright stays with the author, Michael Weiss; the
+license allows everyone to use, modify, fork and redistribute the code, including commercially, as long
+as the copyright and license notices are kept and changes are marked.
 
-## Options to consider
+## Why Apache-2.0
 
-| License | Character | Notes |
-| --- | --- | --- |
-| MIT | permissive, very short | maximum adoption; no patent grant |
-| Apache-2.0 | permissive with explicit patent grant | common for developer tools; requires NOTICE handling |
-| MPL-2.0 | weak copyleft (file level) | modifications to OWL files stay open, can be combined with proprietary code |
-| GPL-3.0 / AGPL-3.0 | strong copyleft | AGPL also covers network use - relevant for the OWL server |
+- permissive: forks and further development are welcome;
+- an explicit patent grant protects users and contributors;
+- the `NOTICE` file keeps the attribution to the original author visible in derived works.
 
-Questions to answer first: should companies be able to embed OWL in closed products? Should
-modifications to a hosted OWL server have to be published? Are third-party contributions accepted
-(consider a DCO or CLA)?
+## Contributions
 
-## Applying a decision
+Contributions are accepted under the same license (Apache-2.0, section 5: "inbound = outbound"). No
+CLA is required.
 
-1. Add `LICENSE` with the full text, set `license` in `pyproject.toml`
-   (`license = "Apache-2.0"`, SPDX expression) and the matching classifier.
-2. Add the license badge to the README and mention it in `CONTRIBUTING.md`.
-3. Use the same license (or a deliberately chosen one) for `owl-registry`'s *tooling*; skills in a
-   registry carry their own `license` frontmatter, which OWL records in the index.
+## Skills in a registry
+
+Skills carry their own `license` frontmatter or `skill.json` field, which OWL records in the registry
+index. Skills without one are covered by the license of the registry repository they live in.
+
+## Dependencies
+
+All runtime dependencies are permissively or weakly-copyleft licensed open-source packages; check
+`uv.lock` and run a license scanner of your choice before redistributing a bundled build.

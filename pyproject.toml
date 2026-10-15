@@ -3,6 +3,8 @@ name = "owl"
 version = "0.1.0"
 description = "OWL - a skill manager with standalone, git, client and server modes"
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 authors = [
     { name = "Michael", email = "150333378+MichaelWeissDEV@users.noreply.github.com" }
 ]
