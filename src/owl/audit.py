@@ -62,3 +62,18 @@ def forget_install(ref: str | None, directory: Path, target: str) -> None:
         db.history_add("uninstall", ref, "ok", f"{target}: {directory}")
 
     _safe("uninstall", work)
+
+
+def provenance_for(skill: Skill) -> dict | None:
+    """Where *skill* came from: its transient provenance, else the recorded import provenance
+    (only if it was recorded for exactly this content)."""
+    if skill.provenance:
+        return skill.provenance
+    try:
+        with LocalDB() as db:
+            recorded = db.provenance_get(skill.ref)
+    except Exception:  # noqa: BLE001
+        return None
+    if recorded and recorded.get("sha256") == skill.sha256:
+        return {k: v for k, v in recorded.items() if k != "sha256"} | {"sha256": skill.sha256}
+    return None

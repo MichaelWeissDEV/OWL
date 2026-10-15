@@ -31,12 +31,14 @@ class Installed:
     path: Path
     #: path -> sha256 of the files OWL wrote; ``None`` for installs made by older versions
     files: dict[str, str] | None = field(default=None, repr=False)
+    provenance: dict | None = field(default=None, repr=False)  #: git url/ref/commit/path, registry
 
     def to_dict(self) -> dict:
         """JSON-friendly representation (slotted dataclasses have no ``__dict__``)."""
         data = asdict(self)
         data["path"] = str(self.path)
         data.pop("files")
+        data["provenance"] = self.provenance
         data["modified"] = self.modified_files() or []
         return data
 
@@ -59,7 +61,14 @@ def backup_root() -> Path:
     return paths.home() / "backups" / "installs"
 
 
-def install_skill(skill: Skill, target: Path, *, source: str = "", force: bool = False) -> Path:
+def install_skill(
+    skill: Skill,
+    target: Path,
+    *,
+    source: str = "",
+    force: bool = False,
+    provenance: dict | None = None,
+) -> Path:
     """Install *skill* below *target*/<name>.
 
     Refuses to overwrite a directory that OWL did not create, one holding another skill, or one
@@ -96,6 +105,7 @@ def install_skill(skill: Skill, target: Path, *, source: str = "", force: bool =
         "sha256": skill.sha256,
         "source": source,
         "files": hash_tree(files),
+        "provenance": provenance if provenance is not None else skill.provenance,
     }
     files[MARKER] = (json.dumps(marker_data, indent=2) + "\n").encode("utf-8")
     replace_dir(dest, files, keep_backup_in=backup_root() if replaced_existing and force else None)
@@ -115,6 +125,7 @@ def read_marker(path: Path) -> Installed | None:
             source=data.get("source", ""),
             path=path,
             files=files if isinstance(files, dict) else None,
+            provenance=data.get("provenance") if isinstance(data.get("provenance"), dict) else None,
         )
     except (OSError, ValueError, KeyError):
         return None

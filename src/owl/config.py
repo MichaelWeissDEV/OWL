@@ -30,7 +30,14 @@ def default_registry_url() -> str:
 class Remote:
     url: str
     kind: str = "server"  #: "server" (OWL HTTP API) or "registry" (git repository, read-only)
-    ref: str | None = None  #: registry only: branch or tag
+    ref: str | None = None  #: registry only: branch, tag or commit to follow
+    enabled: bool = True  #: disabled remotes are ignored by `--all`
+    auto_update: bool = True  #: registry: refresh the cache automatically when it is stale
+    update_interval: int = 3600  #: registry: seconds before the cache counts as stale
+    offline: str = "cache"  #: registry: "cache" (use the cache when the network fails) or "fail"
+    verify: bool = True  #: registry: check index entries against the real skill content
+    trusted: bool = False  #: a label for you; OWL does not verify publishers
+    targets: list[str] | None = None  #: preferred install targets for skills from this remote
     token: str | None = None
     token_env: str | None = None  #: read the token from this environment variable instead
 

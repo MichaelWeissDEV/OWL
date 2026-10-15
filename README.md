@@ -249,9 +249,10 @@ with status 1. Use `--force` to overwrite deliberately.
 | Setup | `init`, `config show\|get\|set\|path`, `doctor`, `db status\|migrate\|backup` |
 | Import / discovery | `add` (`--allow-incomplete`, `--interactive`, `--dry-run`), `scan`, `import`, `new`, `validate`, `drafts` |
 | Library | `list`, `search`, `show`, `remove`, `authors`, `tags`, `topics`, `stats`, `edit`, `metadata`, `favorite`, `collection`, `note`, `history` |
-| Install | `install`, `uninstall`, `installed`, `outdated`, `update`, `targets` |
+| Install | `install`, `uninstall`, `installed`, `outdated`, `update`, `targets`, `lock create\|install\|verify` |
 | Formats | `export`, `import`, `format list\|show\|add\|remove` |
-| Registries / remotes | `registry init\|publish\|check\|index\|migrate\|upgrade\|add\|list\|remove\|update`, `remote add\|list\|remove\|ping`, `pull`, `push`, `diff`, `sync`, `source`, `trust`, `serve` |
+| Registries / remotes | `registry init\|create\|publish\|check\|index\|migrate\|upgrade\|add\|list\|show\|set\|doctor\|remove\|update\|merge`, `remote add\|list\|remove\|ping`, `pull`, `push`, `diff`, `merge`, `sync`, `source`, `trust`, `serve` |
+| Backup | `backup create\|list\|verify\|restore` |
 
 Every listing supports `--json`. Run `owl COMMAND --help` for all options.
 

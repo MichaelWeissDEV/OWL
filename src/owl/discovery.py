@@ -60,6 +60,7 @@ class Candidate:
     commit: str | None = None  #: git commit of the source repository, if any
     skill: Skill | None = None  #: ready-to-store skill when ``status == "valid"``
     extra: dict[str, Any] = field(default_factory=dict)  #: overlay (skill.json) of the source
+    provenance: dict[str, Any] | None = None  #: url/ref/commit/path for git and directory sources
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -276,13 +277,23 @@ def discover_source(
             gitutil.clone(source, checkout, ref=ref)
             commit = gitutil.head_commit(checkout)
             base = _sub(checkout, subdir)
-            yield discover(
+            found = discover(
                 base,
                 source=source,
                 default_author=default_author,
                 recursive=recursive,
                 commit=commit,
             )
+            for c in found:
+                rel = (base / c.relative).resolve().relative_to(checkout.resolve()).as_posix()
+                c.provenance = {
+                    "kind": "git",
+                    "url": source,
+                    "ref": ref,
+                    "commit": commit,
+                    "path": rel,
+                }
+            yield found
         return
     path = Path(source).expanduser()
     if not path.exists():
@@ -298,13 +309,23 @@ def discover_source(
             )
         return
     commit = gitutil.head_commit(path) if path.is_dir() and gitutil.is_repo(path) else None
-    yield discover(
-        _sub(path, subdir) if path.is_dir() else path,
+    base = _sub(path, subdir) if path.is_dir() else path
+    found = discover(
+        base,
         source=str(path),
         default_author=default_author,
         recursive=recursive,
         commit=commit,
     )
+    for c in found:
+        c.provenance = {
+            "kind": "directory",
+            "url": str(path.resolve()),
+            "ref": None,
+            "commit": commit,
+            "path": c.relative,
+        }
+    yield found
 
 
 def _sub(root: Path, subdir: str | None) -> Path:

@@ -19,6 +19,7 @@ from owl.cli import (
     LocalOpt,
     ProjectOpt,
     RemoteOpt,
+    RootOpt,
     TargetOpt,
     _one,
     _target_dirs,
@@ -145,10 +146,11 @@ def _check(
     directory: str | None,
     project: bool,
     names: list[str] | None,
+    project_root: Path | None = None,
 ) -> list[tuple[str, Path, Installed, Skill | None]]:
     rows: list[tuple[str, Path, Installed, Skill | None]] = []
     found: set[str] = set()
-    for tname, tdir in _target_dirs(cfg, targets, directory, project):
+    for tname, tdir in _target_dirs(cfg, targets, directory, project, project_root):
         for item in list_installed(tdir):
             if names and item.name not in names:
                 continue
@@ -165,10 +167,11 @@ def outdated(
     target: TargetOpt = None,
     directory: DirOpt = None,
     project: ProjectOpt = False,
+    project_root: RootOpt = None,
     as_json: JsonOpt = False,
 ) -> None:
     """Show installed skills whose source has a newer version."""
-    checked = _check(load_config(), target, directory, project, None)
+    checked = _check(load_config(), target, directory, project, None, project_root)
     rows = [(t, i, new) for t, _d, i, new in checked if new is not None and new.sha256 != i.sha256]
     if as_json:
         typer.echo(
@@ -198,6 +201,7 @@ def update(
     target: TargetOpt = None,
     directory: DirOpt = None,
     project: ProjectOpt = False,
+    project_root: RootOpt = None,
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Only show what would change.")
     ] = False,
@@ -214,7 +218,9 @@ def update(
     """
     changed = 0
     conflicts = 0
-    for tname, tdir, item, new in _check(load_config(), target, directory, project, names):
+    for tname, tdir, item, new in _check(
+        load_config(), target, directory, project, names, project_root
+    ):
         label = f"{item.ref} [dim]({tname})[/dim]"
         modified = item.modified_files()
         if new is None:

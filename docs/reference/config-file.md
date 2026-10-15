@@ -53,6 +53,7 @@ Keys with `null` values are omitted when OWL writes the file.
 | --- | --- | --- |
 | `url` | string | server: base URL without `/api/v1`; registry: git URL or local directory |
 | `kind` | `server` \| `registry` | default `server` |
+| `enabled`, `auto_update`, `update_interval`, `offline`, `verify`, `trusted`, `targets` | | registry settings, see {doc}`../guide/registries` |
 | `ref` | string \| null | registry only: branch or tag to follow |
 | `token` | string \| null | bearer token stored in the file |
 | `token_env` | string \| null | environment variable holding the token (wins over `token`) |

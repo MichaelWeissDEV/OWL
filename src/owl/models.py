@@ -124,6 +124,9 @@ class Skill:
     files: dict[str, bytes] = field(default_factory=dict)  #: bundled files by relative path
     created_at: str | None = None
     updated_at: str | None = None
+    #: where this copy came from (git URL/ref/commit/path, registry, ...). Transient: never hashed,
+    #: never part of the wire format; recorded in the local database on import/install.
+    provenance: dict[str, Any] | None = field(default=None, repr=False, compare=False)
     sha256: str = field(default="", init=False)
 
     def __post_init__(self) -> None:

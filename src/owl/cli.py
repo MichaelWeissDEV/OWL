@@ -102,7 +102,7 @@ def _stores(
     try:
         if everything:
             opened.append(open_store(cfg.store))
-            opened.extend(open_remote(cfg, name) for name in cfg.remotes)
+            opened.extend(open_remote(cfg, n) for n, r in cfg.remotes.items() if r.enabled)
         elif remotes:
             opened.extend(open_remote(cfg, name) for name in remotes)
             if local:
@@ -114,6 +114,8 @@ def _stores(
         yield opened
     finally:
         for store in opened:
+            for warning in getattr(store, "warnings", []):
+                err_console.print(f"[yellow]warning:[/yellow] {escape(warning)}")
             store.close()
 
 
@@ -218,8 +220,21 @@ ProjectOpt = Annotated[
 ]
 
 
+RootOpt = Annotated[
+    Path | None,
+    typer.Option(
+        "--project-root",
+        help="Project directory to use instead of the current one (implies --project).",
+    ),
+]
+
+
 def _target_dirs(
-    cfg: Config, targets: list[str] | None, directory: str | None, project: bool
+    cfg: Config,
+    targets: list[str] | None,
+    directory: str | None,
+    project: bool,
+    project_root: Path | None = None,
 ) -> list[tuple[str, Path]]:
     return resolve_targets(
         targets,
@@ -228,6 +243,7 @@ def _target_dirs(
         configured=cfg.targets,
         install_dir=cfg.install_dir,
         custom=cfg.custom_targets,
+        project_root=project_root.expanduser().resolve() if project_root else None,
     )
 
 
@@ -660,6 +676,7 @@ def install(
     target: TargetOpt = None,
     directory: DirOpt = None,
     project: ProjectOpt = False,
+    project_root: RootOpt = None,
     ref: Annotated[str | None, typer.Option("--ref", help="Branch or tag (git sources).")] = None,
     subdir: Annotated[str | None, typer.Option(help="Only look below this sub-directory.")] = None,
     remote: RemoteOpt = None,
@@ -668,7 +685,8 @@ def install(
 ) -> None:
     """Install skills for one or more tools (Claude Code, OpenCode, Codex, ...), globally or per project."""
     cfg = load_config()
-    destinations = _target_dirs(cfg, target, directory, project)
+    destinations = _target_dirs(cfg, target, directory, project, project_root)
+    project = project or project_root is not None
     chosen: list[tuple[Skill, str]] = []
     if collection:
         from owl.localdb import LocalDB
@@ -713,7 +731,8 @@ def install(
                 chosen.append((store.get_ref(source), store.label))
     for item, origin in chosen:
         for tname, tdir in destinations:
-            dest = install_skill(item, tdir, source=origin, force=force)
+            prov = audit.provenance_for(item)
+            dest = install_skill(item, tdir, source=origin, force=force, provenance=prov)
             audit.record_install(
                 item,
                 target=tname,
@@ -721,6 +740,8 @@ def install(
                 source=origin,
                 project=project,
                 custom=bool(directory) or tname == "custom",
+                registry=(prov or {}).get("registry"),
+                revision=(prov or {}).get("commit"),
             )
             console.print(f"[green]installed[/green] {item.ref} -> {dest}  [dim]({tname})[/dim]")
 
@@ -731,12 +752,13 @@ def uninstall(
     target: TargetOpt = None,
     directory: DirOpt = None,
     project: ProjectOpt = False,
+    project_root: RootOpt = None,
     force: Annotated[
         bool, typer.Option("--force", help="Also remove locally modified skills (backup kept).")
     ] = False,
 ) -> None:
     """Remove skills that were installed by owl."""
-    for tname, tdir in _target_dirs(load_config(), target, directory, project):
+    for tname, tdir in _target_dirs(load_config(), target, directory, project, project_root):
         for name in names:
             try:
                 dest = uninstall_skill(name, tdir, force=force)
@@ -752,12 +774,13 @@ def installed(
     target: TargetOpt = None,
     directory: DirOpt = None,
     project: ProjectOpt = False,
+    project_root: RootOpt = None,
     as_json: JsonOpt = False,
 ) -> None:
     """List skills installed by owl."""
     rows = [
         (tname, i)
-        for tname, tdir in _target_dirs(load_config(), target, directory, project)
+        for tname, tdir in _target_dirs(load_config(), target, directory, project, project_root)
         for i in list_installed(tdir)
     ]
     if as_json:
@@ -1002,7 +1025,14 @@ def serve(
         store.close()
 
 
-from owl import cli_formats, cli_import, cli_local, cli_registry, cli_tools  # noqa: E402,F401
+from owl import (  # noqa: E402,F401
+    cli_formats,
+    cli_git,
+    cli_import,
+    cli_local,
+    cli_registry,
+    cli_tools,
+)
 
 
 def main() -> None:

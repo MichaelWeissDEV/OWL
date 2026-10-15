@@ -189,9 +189,13 @@ def _apply(plan: list[PlanItem], store) -> dict[str, int]:  # type: ignore[no-un
                 if item.action in ("add", "update") and item.skill is not None:
                     stored = store.upsert(item.skill)
                     counts["added" if item.action == "add" else "updated"] += 1
+                    if c.provenance:
+                        db.provenance_set(stored.ref, c.provenance, stored.sha256)
                     db.history_add("add", stored.ref, "ok", f"from {c.source}")
                 elif item.action == "unchanged":
                     counts["unchanged"] += 1
+                    if c.provenance and item.skill is not None:
+                        db.provenance_set(item.skill.ref, c.provenance, item.skill.sha256)
                 elif item.action == "draft":
                     content = item.skill.content if item.skill else c.text
                     problems = item.note.split("; ") if item.note else c.problems

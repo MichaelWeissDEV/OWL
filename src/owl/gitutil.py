@@ -10,6 +10,7 @@ from pathlib import Path
 
 from owl.models import OwlError
 
+COMMIT_RE = re.compile(r"[0-9a-f]{7,40}")
 URL_RE = re.compile(r"^(https?|ssh|git|file)://|^git@[\w.-]+:")
 
 
@@ -34,11 +35,14 @@ def _git(
 def clone(url: str, dest: Path, ref: str | None = None, depth: int | None = 1) -> None:
     """Clone *url* into *dest* (shallow by default)."""
     args = ["clone", "--quiet"]
-    if depth:
+    commit_ref = bool(ref and COMMIT_RE.fullmatch(ref))
+    if depth and not commit_ref:
         args += ["--depth", str(depth)]
-    if ref:
+    if ref and not commit_ref:
         args += ["--branch", ref]
     _git([*args, "--", url, str(dest)])
+    if commit_ref:
+        _git(["checkout", "--quiet", "--detach", str(ref)], cwd=dest)
 
 
 def is_repo(path: Path) -> bool:
@@ -135,3 +139,52 @@ def head_commit(path: Path) -> str | None:
     """SHA of ``HEAD`` in the repository at *path*, or ``None``."""
     proc = _git(["rev-parse", "HEAD"], cwd=path, check=False)
     return proc.stdout.strip() if proc.returncode == 0 else None
+
+
+def clone_at(url: str, dest: Path, commit: str) -> None:
+    """Check out exactly *commit* of *url* into *dest* (shallow when the server allows it)."""
+    if not COMMIT_RE.fullmatch(commit):
+        raise OwlError(f"Not a commit id: {commit!r}")
+    dest.mkdir(parents=True, exist_ok=True)
+    _git(["init", "--quiet"], cwd=dest)
+    _git(["remote", "add", "origin", url], cwd=dest)
+    shallow = _git(["fetch", "--quiet", "--depth", "1", "origin", commit], cwd=dest, check=False)
+    if shallow.returncode != 0:  # some servers refuse fetching arbitrary commits: fetch everything
+        _git(["fetch", "--quiet", "origin"], cwd=dest)
+    _git(["checkout", "--quiet", "--detach", commit], cwd=dest)
+    if head_commit(dest) != commit and not (head_commit(dest) or "").startswith(commit):
+        raise OwlError(f"Could not check out {commit} from {url}")
+
+
+def ls_remote(url: str, timeout: float = 30) -> list[str]:
+    """Heads/tags of a remote (used to check reachability); raises :class:`OwlError`."""
+    if shutil.which("git") is None:
+        raise OwlError("git is not installed or not on PATH")
+    try:
+        proc = subprocess.run(
+            ["git", "ls-remote", "--heads", "--tags", url],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise OwlError(f"{url} did not answer within {timeout:.0f}s") from exc
+    if proc.returncode != 0:
+        raise OwlError(proc.stderr.strip() or f"git ls-remote failed for {url}")
+    return [line.split("\t", 1)[1] for line in proc.stdout.splitlines() if "\t" in line]
+
+
+def current_ref(path: Path) -> str:
+    """Branch name of the checkout (or ``HEAD`` when detached)."""
+    return _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=path).stdout.strip()
+
+
+def create_branch(path: Path, name: str) -> None:
+    _git(["checkout", "--quiet", "-b", name], cwd=path)
+
+
+def push_branch(path: Path, branch: str) -> None:
+    """Push *branch* to origin. Never forces."""
+    _git(["push", "--quiet", "-u", "origin", branch], cwd=path)

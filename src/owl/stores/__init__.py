@@ -41,7 +41,16 @@ def open_remote(config: Config, name: str) -> SkillStore:
 
     remote = config.remote(name)
     if remote.kind == "registry":
-        return RegistryStore(remote.url, name, paths.home() / "registries" / name, ref=remote.ref)
+        return RegistryStore(
+            remote.url,
+            name,
+            paths.home() / "registries" / name,
+            ref=remote.ref,
+            ttl=remote.update_interval,
+            auto_update=remote.auto_update,
+            offline=remote.offline,
+            verify=remote.verify,
+        )
     return RemoteStore(remote.url, remote.resolved_token(), label=name)
 
 

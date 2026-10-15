@@ -5,6 +5,18 @@ Format based on [Keep a Changelog](https://keepachangelog.com/); versions follow
 
 ## Unreleased
 
+### Added (Phase D – git management)
+
+- Provenance (git URL, ref, commit, path, registry) for imports and installs; `owl lock create|install|verify`
+  with `owl.lock`; `--project-root` for install/uninstall/installed/outdated/update.
+- Registry settings (`enabled`, `auto_update`, `update_interval`, `offline`, `verify`, `trusted`,
+  `targets`, pinned `ref` incl. commits), `registry show|set|doctor|update --all|create|merge`; cache is
+  never damaged by failed fetches; index entries are verified against content.
+- `registry publish --to/--dry-run/--diff/--commit/--branch/--push/--pr` (local by default, never forced).
+- `owl merge`: semantic skill merge with conflict detection, interactive/batch resolution and reports.
+- `owl backup create|list|verify|restore` with manifest, hashes, integrity and compatibility checks.
+- Optional remote repository creation for GitHub, GitLab and Gitea/Forgejo (explicit, confirmed).
+
 ### Added (Phase C – local skill management)
 
 - Versioned migrations with automatic SQLite backups and transactional DDL; catalog schema v2

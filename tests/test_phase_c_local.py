@@ -213,7 +213,7 @@ def test_search_flags_filters_sort_and_paging(lib, tmp_path):
 
 def test_db_commands_and_source_trust(lib):
     status = owl("db", "status").stdout
-    assert "catalog: v2 of v2" in status and "local: v1 of v1" in status
+    assert "catalog: v2 of v2" in status and "local: v2 of v2" in status
     assert "up to date" in owl("db", "migrate").stdout
     assert owl("db", "backup").stdout.count("backup") >= 2
     owl("source", "add", "mine", "/some/dir")

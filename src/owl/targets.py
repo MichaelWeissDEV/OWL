@@ -63,6 +63,7 @@ def resolve_targets(
     configured: list[str] | None = None,
     install_dir: str | None = None,
     custom: dict[str, dict[str, str]] | None = None,
+    project_root: Path | None = None,
 ) -> list[tuple[str, Path]]:
     """Turn CLI/config choices into ``(target name, directory)`` pairs.
 
@@ -71,6 +72,8 @@ def resolve_targets(
     """
     if directory:
         return [("custom", Path(directory).expanduser())]
+    if project_root is not None:
+        project = True
     known = all_targets(custom)
     chosen = names or None
     if chosen is None:
@@ -87,7 +90,7 @@ def resolve_targets(
         target = known[name]
         if not (target.project_dir if project else target.global_dir):
             raise OwlError(f"Target '{name}' has no {'project' if project else 'global'} directory")
-        path = target.path(project)
+        path = target.path(project, project_root)
         if path not in seen:  # codex/agents share a directory: install once
             seen.add(path)
             resolved.append((name, path))

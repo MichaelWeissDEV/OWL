@@ -26,6 +26,12 @@ Use the online backup API rather than copying a file that may be mid-write:
 $ sqlite3 skills.sqlite3 ".backup 'skills-backup.sqlite3'"
 ```
 
+## OWL's own backup command
+
+`owl backup create` archives the *local* state (config, personal database, SQLite or git catalog, formats,
+optionally cached registries) with a verified manifest – see {doc}`../guide/backup`. It does not replace
+`pg_dump` for a PostgreSQL server.
+
 ## Portable backup through OWL
 
 Independent of the backend, this produces plain files that any OWL (or git) can read:

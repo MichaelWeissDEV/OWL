@@ -17,7 +17,10 @@ searching
 registries
 tools
 installing
+lock
 syncing
+merging
+backup
 maintenance
 completion
 configuration

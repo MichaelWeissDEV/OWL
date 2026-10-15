@@ -121,7 +121,7 @@ def test_migration_numbering_is_validated(tmp_path):
 
 def test_local_db_roundtrip(owl_home):
     with LocalDB() as db:
-        assert db.migrator.current() == 1
+        assert db.migrator.current() == 2
         assert db.favorite_add("a/x") and not db.favorite_add("a/x")
         db.collection_create("sec", "security things")
         assert db.collection_add("sec", "a/x") and not db.collection_add("sec", "a/x")

@@ -64,6 +64,86 @@ $ owl remote add corp https://skills.corp.example --token-env CORP_TOKEN
 $ owl search kubernetes --all           # local + owl registry + corp server
 ```
 
+## Managing registries
+
+Every registry has a unique **alias** and these settings (`owl registry add --help`, `owl registry set`):
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `url` | – | git URL or local directory |
+| `ref` | remote HEAD | branch, tag or **commit** to follow |
+| `enabled` | true | disabled registries are skipped by `--all` (still usable with `-r`) |
+| `auto_update` | true | refresh the cache when it is older than `update_interval` |
+| `update_interval` | 3600 | seconds until the cache counts as stale |
+| `offline` | `cache` | `cache`: use the cache if the network fails; `fail`: error out |
+| `verify` | true | check index entries against the real skill content |
+| `trusted` | false | a label for you (OWL does not verify publishers) |
+| `targets` | – | preferred install targets for skills from this registry |
+
+```console
+$ owl registry add work https://github.com/acme/work-skills.git --ref v2 --interval 600 --trust
+$ owl registry show work                 # settings + cache state (no network)
+$ owl registry set work enabled false
+$ owl registry update --all              # fetch now; one failure does not stop the others
+$ owl registry doctor                    # reachability, cache, index, index-vs-content check
+```
+
+### Cache behaviour
+
+- Regular `search`/`show`/`install` use the cache; it is refreshed only when stale (and `auto_update`
+  is on) or on `owl registry update`.
+- **A failed fetch never damages a working cache.** If the network is down, OWL uses the last valid
+  cache, tells you how old it is (`could not be refreshed - using the cache (5.0 h old)`), and with
+  `offline: fail` stops instead.
+- Pinned registries (`--ref <commit>`) always show exactly that revision.
+
+### Integrity checks
+
+When OWL reads a skill from a registry with an index it compares the skill's actual content hash with
+the index entry. A mismatch (stale index, or content changed behind the index) **refuses the skill**
+with an explanation; `owl registry set NAME verify false` switches this off per registry. `owl registry
+doctor` runs the check for every entry. Remember that a hash detects change but is **not a
+signature** – see {doc}`lock`.
+
+## Publishing into a registry
+
+```console
+$ owl registry publish ./my-skill --to work --dry-run --diff     # validate and show what would change
+$ owl registry publish ./my-skill --to work                      # write into the checkout (local only)
+$ owl registry publish ./my-skill --to work --commit -m "feat: add my-skill"
+$ owl registry publish ./my-skill --to work --branch add-my-skill --push
+$ owl registry publish ./my-skill --to work --pr                 # branch + commit + push + pull request
+```
+
+- `--to ALIAS` publishes into a registry from your configuration: a local-directory registry is used
+  directly, a git URL registry gets a **working checkout** in `$OWL_HOME/checkouts/<alias>` (the
+  read-only cache is never written). `--dir PATH` targets a checkout you manage yourself.
+- The source is validated, name collisions are refused, and every skill is classified `add`, `update`
+  (with `--diff` you see the change) or `unchanged` *before anything is written*.
+- **Default is local only.** Committing needs `--commit`; pushing needs `--push` (never forced, to the
+  current branch or to the one given by `--branch`); a pull request needs `--pr`, which uses the `gh`
+  CLI when installed and otherwise prints the compare URL. Pushing directly to `main`/`master` asks for
+  confirmation first.
+- A checkout with uncommitted changes is not touched unless `--allow-dirty`.
+
+## Creating a registry and its repository
+
+```console
+$ owl registry create my-skills --description "My skills"                      # local only
+$ GITHUB_TOKEN=… owl registry create my-skills --provider github --visibility private
+```
+
+With `--provider github|gitlab|gitea` (self-hosted: `--base-url`) OWL can also create the remote
+repository through the host's API. This only happens when you ask for it, a token is found in the
+environment (`GITHUB_TOKEN`, `GITLAB_TOKEN`, `GITEA_TOKEN`, or the `OWL_…` variants) and you **confirm
+by typing `owner/name`** after seeing the account the token belongs to, the repository name, the
+visibility and the API endpoint. Declining creates nothing at all. The new repository is set as
+`origin` but nothing is pushed unless you pass `--push`. Tokens are never printed or stored.
+
+## Merging registries
+
+See {doc}`merging`.
+
 ## Creating your own registry
 
 ```console

@@ -48,6 +48,7 @@ Applied versions are stored per scope in `owl_migrations(scope, version, name, a
 | `catalog` | 1 | the three tables above |
 | `catalog` | 2 | `skill_revisions` |
 | `local` | 1 | the personal tables below |
+| `local` | 2 | `provenance` |
 
 ### `skill_revisions` (catalog v2)
 
@@ -74,6 +75,7 @@ Deleting a skill keeps its revision history.
 | `installations(id, ref, name, target, directory, scope, project_root, version, sha256, source, registry, revision, installed_at)` | install inventory (unique per directory) |
 | `operation_history(id, at, operation, ref, status, detail)` | log of installs, updates, imports, syncs |
 | `sync_state(remote, ref, sha256, updated_at)` | pull/push bookmarks (moved here from `state.json` once) |
+| `provenance(ref, kind, url, ref_name, commit_sha, path, registry, sha256, recorded_at)` | where an imported skill came from (git URL, ref, commit, path) |
 | `drafts(id, name, origin, content, problems_json, created_at)` | incomplete imports and invalid edits |
 | `local_meta(key, value)` | internal flags |
 

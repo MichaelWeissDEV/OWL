@@ -138,6 +138,19 @@ drafts_t = Table(
     Column("problems_json", Text, nullable=False),
     Column("created_at", String(40), nullable=False),
 )
+provenance_t = Table(
+    "provenance",
+    metadata,
+    Column("ref", String(200), primary_key=True),
+    Column("kind", String(16), nullable=False),  # git | registry | directory | server
+    Column("url", Text),
+    Column("ref_name", String(200)),  # branch or tag that was requested
+    Column("commit_sha", String(64)),
+    Column("path", Text),
+    Column("registry", String(100)),
+    Column("sha256", String(64), nullable=False),
+    Column("recorded_at", String(40), nullable=False),
+)
 meta_t = Table(
     "local_meta",
     metadata,
@@ -148,10 +161,18 @@ meta_t = Table(
 
 def _v1(conn: Connection) -> None:
     for table in metadata.sorted_tables:
-        table.create(conn, checkfirst=True)
+        if table is not provenance_t:
+            table.create(conn, checkfirst=True)
 
 
-LOCAL_MIGRATIONS = [Migration(1, "local user data tables", _v1)]
+def _v2(conn: Connection) -> None:
+    provenance_t.create(conn, checkfirst=True)
+
+
+LOCAL_MIGRATIONS = [
+    Migration(1, "local user data tables", _v1),
+    Migration(2, "skill provenance (git url, ref, commit, path)", _v2),
+]
 
 
 class LocalDB:
@@ -483,6 +504,44 @@ class LocalDB:
                 select(history_t).order_by(history_t.c.id.desc()).limit(limit)
             ).mappings()
             return [dict(r) for r in rows]
+
+    # -- provenance --------------------------------------------------------------------
+
+    def provenance_set(self, ref: str, info: dict[str, Any], sha256: str) -> None:
+        with self.engine.begin() as conn:
+            conn.execute(delete(provenance_t).where(provenance_t.c.ref == ref))
+            conn.execute(
+                insert(provenance_t).values(
+                    ref=ref,
+                    kind=str(info.get("kind", "directory")),
+                    url=info.get("url"),
+                    ref_name=info.get("ref"),
+                    commit_sha=info.get("commit"),
+                    path=info.get("path"),
+                    registry=info.get("registry"),
+                    sha256=sha256,
+                    recorded_at=_now(),
+                )
+            )
+
+    def provenance_get(self, ref: str) -> dict[str, Any] | None:
+        with self.engine.connect() as conn:
+            row = (
+                conn.execute(select(provenance_t).where(provenance_t.c.ref == ref))
+                .mappings()
+                .first()
+            )
+        if row is None:
+            return None
+        return {
+            "kind": row["kind"],
+            "url": row["url"],
+            "ref": row["ref_name"],
+            "commit": row["commit_sha"],
+            "path": row["path"],
+            "registry": row["registry"],
+            "sha256": row["sha256"],
+        }
 
     # -- drafts (incomplete imports) ---------------------------------------------------
 

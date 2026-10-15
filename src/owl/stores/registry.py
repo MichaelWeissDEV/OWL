@@ -32,6 +32,9 @@ class RegistryStore(SkillStore):
         ref: str | None = None,
         ttl: int = DEFAULT_TTL,
         refresh: bool = False,
+        auto_update: bool = True,
+        offline: str = "cache",
+        verify: bool = True,
     ) -> None:
         self.label = label
         self.source = source
@@ -39,11 +42,16 @@ class RegistryStore(SkillStore):
         self.cache_dir = cache_dir
         self.ttl = ttl
         self.refresh = refresh
+        self.auto_update = auto_update
+        self.offline = offline
+        self.verify = verify
         self.warnings: list[str] = []
+        self.fetched_at: float | None = None
         self._root: Path | None = None
         self._entries: dict[str, tuple[SkillSummary, str, str]] | None = (
             None  # ref -> (sum, path, text)
         )
+        self._index: dict | None = None
 
     # -- location ----------------------------------------------------------------------
 
@@ -53,16 +61,28 @@ class RegistryStore(SkillStore):
             self._root = self._prepare()
         return self._root
 
+    @property
+    def is_local_directory(self) -> bool:
+        return not gitutil.is_git_url(self.source)
+
+    def _age_text(self) -> str:
+        if self.fetched_at is None:
+            return "unknown age"
+        hours = (time.time() - self.fetched_at) / 3600
+        return f"{hours:.1f} h old" if hours < 48 else f"{hours / 24:.0f} days old"
+
     def _prepare(self) -> Path:
-        if not gitutil.is_git_url(self.source):
+        if self.is_local_directory:
             path = Path(self.source).expanduser().resolve()
             if not path.is_dir():
                 raise OwlError(f"Registry '{self.label}': {self.source} is not a directory")
             return path
         stamp = self.cache_dir / STAMP
         cloned = gitutil.is_repo(self.cache_dir)
-        fresh = cloned and stamp.exists() and time.time() - stamp.stat().st_mtime < self.ttl
-        if cloned and fresh and not self.refresh:
+        if cloned and stamp.exists():
+            self.fetched_at = stamp.stat().st_mtime
+        fresh = cloned and self.fetched_at is not None and time.time() - self.fetched_at < self.ttl
+        if cloned and not self.refresh and (fresh or not self.auto_update):
             return self.cache_dir
         try:
             if not cloned:
@@ -72,10 +92,19 @@ class RegistryStore(SkillStore):
                 gitutil.set_remote(self.cache_dir, self.source)  # the URL may have changed
                 gitutil.fetch_reset(self.cache_dir, self.ref)
             stamp.touch()
+            self.fetched_at = stamp.stat().st_mtime
         except OwlError as exc:
             if not cloned:
                 raise OwlError(f"Cannot fetch registry '{self.label}': {exc}") from exc
-            self.warnings.append(f"registry '{self.label}' not refreshed (offline?): {exc}")
+            if self.offline == "fail":
+                raise OwlError(
+                    f"Cannot refresh registry '{self.label}' (offline policy: fail): {exc}"
+                ) from exc
+            # the previous, valid cache is untouched by a failed fetch
+            self.warnings.append(
+                f"registry '{self.label}' could not be refreshed - using the cache "
+                f"({self._age_text()}): {exc}"
+            )
         return self.cache_dir
 
     def update(self) -> None:
@@ -83,7 +112,13 @@ class RegistryStore(SkillStore):
         self.refresh = True
         self._root = None
         self._entries = None
+        self._index = None
         _ = self.root
+
+    def head_commit(self) -> str | None:
+        """Commit of the registry checkout (cache or local repository)."""
+        root = self.root
+        return gitutil.head_commit(root) if gitutil.is_repo(root) else None
 
     # -- index -------------------------------------------------------------------------
 
@@ -93,6 +128,7 @@ class RegistryStore(SkillStore):
         root = self.root
         entries: dict[str, tuple[SkillSummary, str, str]] = {}
         index = load_index(root) if (root / INDEX_FILE).is_file() else None
+        self._index = index
         if index is not None:
             for item in index["skills"]:
                 summary = SkillSummary.from_dict(item, source=self.label)
@@ -123,14 +159,46 @@ class RegistryStore(SkillStore):
         entry = self._load().get(f"{author.lower()}/{name}")
         if entry is None:
             return None
+        summary, rel, _text = entry
         root = self.root.resolve()
-        directory = (root / entry[1]).resolve()
+        directory = (root / rel).resolve()
         if not directory.is_relative_to(root) or not (directory / "SKILL.md").is_file():
             raise OwlError(f"Registry '{self.label}' has an invalid path for {author}/{name}")
         result = load_skill_dir(directory)
         if not result.valid:
             raise OwlError(f"{author}/{name}: {'; '.join(result.problems)}")
-        return result.skill
+        skill = result.skill
+        if (
+            self._index is not None
+            and self.verify
+            and summary.sha256
+            and skill.sha256 != summary.sha256
+        ):
+            raise OwlError(
+                f"Registry '{self.label}': the index entry for {author}/{name} does not match the "
+                "skill's content (stale index or tampering). Run `owl registry update`, report it "
+                "to the registry maintainers, or disable the check with `owl registry set "
+                f"{self.label} verify false`."
+            )
+        revision = next(
+            (
+                e.get("revision")
+                for e in (self._index or {}).get("skills", [])
+                if e.get("ref") == skill.ref
+            ),
+            None,
+        )
+        skill.provenance = {
+            "kind": "registry",
+            "registry": self.label,
+            "url": self.source,
+            "ref": self.ref,
+            "commit": revision or self.head_commit(),
+            "registry_commit": self.head_commit(),
+            "path": rel,
+            "sha256": skill.sha256,
+        }
+        return skill
 
     def search(self, query: SearchQuery) -> list[SkillSummary]:
         return filter_and_rank(((s, text) for s, _p, text in self._load().values()), query)
@@ -160,4 +228,7 @@ class RegistryStore(SkillStore):
             "skills": self.count(),
             "updated_at": (index or {}).get("generated_at"),
             "indexed": index is not None,
+            "commit": self.head_commit(),
+            "fetched_at": self.fetched_at,
+            "stale": self.fetched_at is not None and time.time() - self.fetched_at > self.ttl,
         }
