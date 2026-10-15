@@ -14,6 +14,7 @@ flowchart TD
     ST --> SQL[SqlStore<br/>SQLite / PostgreSQL]
     ST --> DIR[DirectoryStore<br/>files + git]
     ST --> REM[RemoteStore<br/>httpx -> server]
+    ST --> REG[RegistryStore<br/>git clone + index.json<br/>read-only]
     REM -. HTTP .-> SRV
     PAR --> MOD[models.py<br/>Skill, hash, validation]
     SQL --> MOD
@@ -32,6 +33,10 @@ flowchart TD
 | `stores/sql.py` | SQLAlchemy Core implementation, URL normalisation, `pg_trgm` setup |
 | `stores/directory.py` | `skills/<author>/<name>` layout with an in-memory cache |
 | `stores/remote.py` | HTTP client implementing the same interface |
+| `stores/registry.py` | read-only store over a registry (git clone cache + `index.json`) |
+| `registry.py` | registry layout, index generation (`updated_at`, INDEX.md), CI workflow template |
+| `targets.py` | tool install targets (Claude Code, OpenCode, Codex, …) |
+| `cli_registry.py`, `cli_tools.py` | `owl registry …` and maintenance commands |
 | `stores/__init__.py` | `open_store` / `open_remote` factories |
 | `server.py` | FastAPI application factory |
 | `installer.py` | install/uninstall/list with markers |

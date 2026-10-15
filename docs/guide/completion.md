@@ -19,8 +19,9 @@ Under zsh, make sure `compinit` is loaded.
 | `--author/-a` | known authors |
 | `--tag/-t` | known tags |
 | `--topic/-T` | known topics |
-| `--remote/-r`, `remote remove/ping` | configured remote names |
-| `uninstall`, `update` | skills installed by OWL in the default install directory |
+| `--remote/-r`, `remote remove/ping`, `registry remove/update` | configured remote and registry names |
+| `--target/-t` | built-in and custom install targets |
+| `uninstall`, `update` | skills installed by OWL in the default targets |
 
 ## Where candidates come from
 

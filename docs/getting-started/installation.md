@@ -73,6 +73,7 @@ Everything lives below `OWL_HOME` (default `~/.owl`):
 | `state.json` | sync bookmarks and the completion cache |
 | `skills.sqlite3` | default SQLite database |
 | `repo/` | default working copy of the git backend |
+| `registries/<name>/` | cached shallow clones of git registries |
 
 Set `OWL_HOME` to relocate or isolate an installation – the test suite and all examples in this
 documentation that must not touch your real setup use it.
@@ -85,4 +86,4 @@ $ pip uninstall owl
 $ rm -rf ~/.owl                       # removes config, database and caches - irreversible
 ```
 
-Installed skills (in `~/.claude/skills` or elsewhere) are **not** touched by uninstalling OWL.
+Installed skills (in `~/.claude/skills`, `~/.config/opencode/skills` or elsewhere) are **not** touched by uninstalling OWL.

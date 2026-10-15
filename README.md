@@ -50,8 +50,10 @@ owl add ./my-skills                  # import every SKILL.md below a directory
 owl add https://github.com/acme/skills.git      # ...or from a git repository
 owl search "commit message" --tag git --author michael
 owl show conventional-commits
-owl install conventional-commits     # -> ~/.claude/skills/conventional-commits
+owl install conventional-commits     # -> ~/.claude/skills/conventional-commits (Claude Code)
 owl install conventional-commits -p  # -> ./.claude/skills (project local)
+owl install conventional-commits -t opencode -p   # OpenCode, this project
+owl install --all -r owl -t claude -t opencode    # everything from the default registry
 ```
 
 `owl install` also installs straight from a git repository or a directory without importing
@@ -64,6 +66,46 @@ owl install https://github.com/acme/skills.git --all
 
 OWL only overwrites directories it created itself (it leaves a `.owl-install.json` marker), unless
 you pass `--force`. `owl installed` lists what it installed, `owl uninstall NAME` removes it.
+
+## Registries (the default way to get skills)
+
+A **registry** is a git repository of skills with a generated `index.json` and a quick-to-read
+`INDEX.md` (including every skill's last update). OWL knows one out of the box:
+`owl` → <https://github.com/MichaelWeissDEV/owl-registry>.
+
+```bash
+owl search git -r owl                       # search the registry index
+owl install michaelweissdev/conventional-commits -r owl
+owl install --all -r owl --tag git -t opencode
+owl registry add team https://github.com/acme/skills-registry.git
+```
+
+Create your own - CI regenerates the index for you:
+
+```bash
+owl registry init ~/work/my-registry --git-url git@github.com:me/my-registry.git
+owl registry publish ./my-skill --dir ~/work/my-registry     # copy in + update index
+```
+
+Registries are read-only for clients (contribute by pull request) and combine freely with
+PostgreSQL-backed servers: `owl search kubernetes --all`.
+
+## Tools: Claude Code, OpenCode, Codex, Gemini, Copilot, Cursor
+
+OWL installs to the directory each tool reads, globally or per project, for one or several tools at
+once (`owl targets` lists them):
+
+| Target | Global | Project (`-p`) |
+| --- | --- | --- |
+| `claude` | `~/.claude/skills` | `.claude/skills` |
+| `opencode` | `~/.config/opencode/skills` | `.opencode/skills` |
+| `agents` / `codex` | `~/.agents/skills` | `.agents/skills` |
+| `gemini` | `~/.gemini/skills` | `.gemini/skills` |
+| `copilot` | `~/.copilot/skills` | `.github/skills` |
+| `cursor` | `~/.cursor/skills` | `.cursor/skills` |
+
+Set defaults with `owl config set targets claude,opencode`; add your own tools as `custom_targets`
+in the config.
 
 ## Skill format
 
@@ -164,7 +206,7 @@ with status 1. Use `--force` to overwrite deliberately.
 
 `init`, `config show|get|set|path`, `new`, `validate`, `add`, `list`, `search`, `show`, `remove`,
 `authors`, `tags`, `topics`, `stats`, `export`, `install`, `uninstall`, `installed`, `outdated`,
-`update`, `remote add|list|remove|ping`, `pull`, `push`, `diff`, `sync`, `serve`, `doctor`. Every listing supports `--json`. Run `owl COMMAND --help` for all options.
+`update`, `targets`, `registry init|publish|index|add|list|remove|update`, `remote add|list|remove|ping`, `pull`, `push`, `diff`, `sync`, `serve`, `doctor`. Every listing supports `--json`. Run `owl COMMAND --help` for all options.
 
 Environment: `OWL_HOME` (default `~/.owl`: config, state, default database), `OWL_DB_URL`,
 `OWL_SERVER_TOKEN`.

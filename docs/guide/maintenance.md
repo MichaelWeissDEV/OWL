@@ -14,12 +14,17 @@ $ owl doctor
 │ OK   │ store (sqlite)    │ 42 skills                           │
 │ OK   │ git               │ available                           │
 │ WARN │ extra [server]    │ not installed (pip install 'owl[server]') │
-│ OK   │ install dir       │ /home/me/.claude/skills             │
+│ OK   │ install target claude │ /home/me/.claude/skills         │
 │ OK   │ remote team       │ https://skills.example.com - 120 skills │
 ```
 
 Exit status is 1 only for hard failures (broken config, store cannot be opened, git backend without
 a repository). Unreachable remotes and missing extras are warnings.
+
+## `owl targets`
+
+Lists the tools OWL can install for with global and project directories; `*` marks the defaults
+({doc}`tools`).
 
 ## `owl stats`
 
@@ -41,11 +46,12 @@ $ owl config path             # file location
 $ owl config get author
 $ owl config set mode client
 $ owl config set default_remote team
-$ owl config set install_dir ~/.claude/skills
+$ owl config set targets claude,opencode
+$ owl config set install_dir ~/my/skills       # optional custom directory (global)
 $ owl config set default_remote ""      # unset
 ```
 
-Settable keys: `mode`, `author`, `install_dir`, `default_remote`. Remotes are managed with
+Settable keys: `mode`, `author`, `targets`, `install_dir`, `default_remote`. Remotes are managed with
 `owl remote …`, the store with `owl init`. See {doc}`configuration`.
 
 ## `owl export`

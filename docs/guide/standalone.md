@@ -14,7 +14,7 @@ $ owl init --author michael
 | `--backend` | `sqlite` | `sqlite`, `postgres` or `git` |
 | `--location` | `~/.owl/skills.sqlite3` (sqlite), `~/.owl/repo` (git) | database file / URL / working copy |
 | `--author` | `local` | default author for skills without one |
-| `--install-dir` | `~/.claude/skills` | default install target |
+| `--target/-t` | `claude` | default install target(s), e.g. `opencode` |
 
 `owl init` can be repeated; it rewrites the store section of the existing config and keeps remotes.
 

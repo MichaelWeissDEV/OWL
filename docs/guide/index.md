@@ -11,6 +11,8 @@ postgres
 server
 client
 searching
+registries
+tools
 installing
 syncing
 maintenance

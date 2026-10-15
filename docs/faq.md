@@ -2,9 +2,13 @@
 
 **Does OWL work with agents other than Claude Code?**
 OWL manages `SKILL.md` directories and installs them into any directory you point `--dir` (or
-`install_dir`) at. Anything that reads Agent Skills-style folders can use them.
+a custom target) at. OWL supports Claude Code, OpenCode, Codex CLI, Gemini CLI, GitHub Copilot and Cursor natively (`owl targets`), and anything that reads Agent Skills-style folders can use the rest.
 
-**Where are skills installed by default?** `~/.claude/skills/<name>/`. Use `-p` for `./.claude/skills`.
+**Where are skills installed by default?** For the default target `claude`: `~/.claude/skills/<name>/`. Use `-t opencode` (and others), `-p` for the project directory, `owl config set targets claude,opencode` to change the default. See {doc}`guide/tools`.
+
+**What is the default registry?** `owl` → `https://github.com/MichaelWeissDEV/owl-registry.git`, preconfigured on fresh installs. Browse it with `owl search -r owl`; see {doc}`guide/registries`.
+
+**Can I install everything from a registry?** `owl install --all -r owl` (optionally `--tag`, `--author`, `-t TOOL`).
 
 **Do I need a server?** No. Standalone mode (SQLite or git) has no server at all. A server is only for
 sharing.

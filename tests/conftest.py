@@ -19,6 +19,7 @@ def owl_home(tmp_path, monkeypatch):
     """Never touch the real ~/.owl or ~/.claude during tests."""
     home = tmp_path / "owl-home"
     monkeypatch.setenv("OWL_HOME", str(home))
+    monkeypatch.setenv("OWL_DEFAULT_REGISTRY", "")  # never reach the network from tests
     return home
 
 

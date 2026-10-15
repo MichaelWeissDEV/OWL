@@ -57,9 +57,23 @@ into and the staging area you push from.
 The mode is a convenience default stored in the config; every behaviour can still be selected per
 command with `--local` and `--remote`. See {doc}`../guide/configuration`.
 
+## Registry
+
+A *registry* is a git repository of skills with a generated `index.json` / `INDEX.md`. It is a
+read-only remote: you search and install from it; contributions arrive as pull requests, and CI keeps
+the index (including each skill's last update) current. OWL's default registry is `owl`. See
+{doc}`../guide/registries`.
+
+## Target
+
+A *target* names where a tool (Claude Code, OpenCode, Codex, Gemini CLI, Copilot, Cursor, …) looks for
+skills – a global and a project directory. One install can write to several targets. See
+{doc}`../guide/tools`.
+
 ## Remote
 
-A *remote* is a named OWL server (URL plus optional token). Several remotes can be configured and
+A *remote* is a named source besides the local library: an OWL server (URL plus optional token) or a
+registry. Several remotes can be configured and
 queried at once – they are independent servers, perhaps run by different teams.
 
 ## Sync bookmark
@@ -70,6 +84,6 @@ sides changed (*diverged*). See {doc}`../guide/syncing`.
 
 ## Install directory and marker
 
-Installing copies a skill to `<install dir>/<name>/` and writes `.owl-install.json` into it. The
+Installing copies a skill to `<target dir>/<name>/` and writes `.owl-install.json` into it. The
 marker lets OWL recognise its own installations: it will update or remove those, and refuse to
 touch directories you created by hand unless you pass `--force`.

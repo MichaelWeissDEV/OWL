@@ -1,6 +1,8 @@
 # Client mode
 
-A client keeps a **local library** and talks to any number of **remotes** (OWL servers).
+A client keeps a **local library** and talks to any number of **remotes**: OWL servers (HTTP,
+writable with a token) and read-only **registries** (git repositories, see {doc}`registries`). Both
+are addressed with `-r NAME`; `owl remote list` shows the kind of each.
 
 ## Set up
 

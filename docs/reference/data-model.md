@@ -46,7 +46,7 @@ additionally carry a `source` label (store or remote name) in the CLI.
 
 ## Installed marker
 
-`<install dir>/<name>/.owl-install.json`: `ref`, `version`, `sha256`, `source`.
+`<target dir>/<name>/.owl-install.json`: `ref`, `version`, `sha256`, `source`.
 
 ## Limits
 

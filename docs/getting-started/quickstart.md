@@ -50,8 +50,9 @@ $ owl tags                                  # all tags with counts
 ## 4. Install a skill
 
 ```console
-$ owl install release-notes                 # -> ~/.claude/skills/release-notes
-$ owl install release-notes -p              # -> ./.claude/skills (this project only)
+$ owl install release-notes                 # -> ~/.claude/skills/release-notes (Claude Code)
+$ owl install release-notes -t opencode     # -> ~/.config/opencode/skills/release-notes
+$ owl install release-notes -p -t claude -t opencode   # this project, both tools
 $ owl installed
 $ owl uninstall release-notes
 ```
@@ -62,7 +63,17 @@ You can also install straight from a git repository without importing it first:
 $ owl install https://github.com/acme/skills.git --all
 ```
 
-## 5. Share with others
+## 5. Use the default registry
+
+Fresh installs know the public registry `owl`:
+
+```console
+$ owl search commit -r owl
+$ owl install michaelweissdev/conventional-commits -r owl
+$ owl install --all -r owl -t opencode        # everything, for OpenCode
+```
+
+## 6. Share with others
 
 Run a server (read-only unless you set a token):
 
@@ -84,5 +95,6 @@ $ owl push my-skill -r team
 ## Where to go next
 
 - {doc}`concepts` – the vocabulary used throughout the docs.
+- {doc}`../guide/registries` and {doc}`../guide/tools` – registries and installing for OpenCode, Codex, …
 - {doc}`../guide/index` – every feature in depth.
 - {doc}`../tutorials/index` – complete scenarios.

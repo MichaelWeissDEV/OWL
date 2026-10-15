@@ -26,6 +26,12 @@ Ideas, roughly in order of expected value. Nothing here is promised.
 - **Server-to-server mirroring** (`owl mirror`).
 - **Windows** in the CI matrix.
 
+## Registries
+
+- `owl registry search-all`: aggregate several registries' indexes into one searchable snapshot.
+- Signed index (`index.json.sig`) and `sha256` verification on install.
+- `owl registry submit`: open a pull request against a registry from the CLI.
+
 ## Packaging
 
 - Publish to PyPI via trusted publishing; multi-arch container image on GHCR.

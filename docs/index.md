@@ -67,6 +67,10 @@ Architecture, testing, CI, releasing and how to add a storage backend.
 
 - **Three modes** – *standalone* (local library), *server* (HTTP API in front of a database or git
   repository) and *client* (local library plus any number of servers).
+- **Registries** – git repositories with a generated index; the default registry `owl` is built in, and
+  `owl registry init` creates your own with CI that keeps the index (and last-update times) current.
+- **Native tool support** – install for Claude Code, OpenCode, Codex CLI, Gemini CLI, GitHub Copilot and
+  Cursor, globally or per project, one skill or a whole registry.
 - **Three storage backends** – SQLite, PostgreSQL and a git/plain-file layout (`SKILL.md` +
   `skill.json`).
 - **Search** by free text, author, tags and topics – locally, on one server, or across all of them

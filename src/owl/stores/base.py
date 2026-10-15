@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 
 from owl.models import (
     AmbiguousRef,
@@ -27,6 +28,38 @@ def rank(summary: SkillSummary, terms: list[str]) -> int:
     if first in summary.description.lower():
         return 1
     return 2
+
+
+def filter_and_rank(
+    items: Iterable[tuple[SkillSummary, str]], query: SearchQuery
+) -> list[SkillSummary]:
+    """Apply *query* to ``(summary, extra_text)`` pairs with the semantics every store shares.
+
+    ``extra_text`` is additional searchable text (the SKILL.md body) or ``""``.
+    """
+    terms = query.terms()
+    results: list[SkillSummary] = []
+    for summary, extra in items:
+        if query.author and summary.author != query.author.lower():
+            continue
+        if any(t.lower() not in summary.tags for t in query.tags):
+            continue
+        if any(t.lower() not in summary.topics for t in query.topics):
+            continue
+        haystack = [
+            summary.name,
+            summary.description,
+            summary.author,
+            extra,
+            *summary.tags,
+            *summary.topics,
+        ]
+        lowered = [h.lower() for h in haystack]
+        if any(not any(term in h for h in lowered) for term in terms):
+            continue
+        results.append(summary)
+    results.sort(key=lambda s: (rank(s, terms), s.author, s.name))
+    return results[query.offset : query.offset + query.limit]
 
 
 class SkillStore(ABC):

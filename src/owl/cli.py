@@ -23,6 +23,7 @@ from owl.completion import (
     complete_ref,
     complete_remote,
     complete_tag,
+    complete_target,
     complete_topic,
 )
 from owl.config import (
@@ -44,6 +45,7 @@ from owl.parsing import load_skills, write_skill_dir
 from owl.sources import load_source
 from owl.stores import SkillStore, open_remote, open_store
 from owl.sync import plan_pull, plan_push
+from owl.targets import resolve_targets
 
 app = typer.Typer(
     name="owl",
@@ -164,12 +166,35 @@ def _print_summaries(rows: list[SkillSummary], as_json: bool, show_source: bool 
         err_console.print(f"[dim]{len(rows)} skill(s)[/dim]")
 
 
-def _skill_dir_default(cfg: Config, directory: str | None, project: bool) -> Path:
-    if directory:
-        return expand(directory)
-    if project:
-        return Path.cwd() / ".claude" / "skills"
-    return expand(cfg.install_dir)
+TargetOpt = Annotated[
+    list[str] | None,
+    typer.Option(
+        "--target",
+        "-t",
+        help="Tool to install for: claude, opencode, codex, gemini, copilot, cursor, agents, "
+        "all or a custom target (repeatable). Default: the configured targets.",
+        autocompletion=complete_target,
+    ),
+]
+DirOpt = Annotated[
+    str | None, typer.Option("--dir", "-d", help="Install into this exact directory instead.")
+]
+ProjectOpt = Annotated[
+    bool, typer.Option("--project", "-p", help="Project scope (e.g. ./.claude/skills).")
+]
+
+
+def _target_dirs(
+    cfg: Config, targets: list[str] | None, directory: str | None, project: bool
+) -> list[tuple[str, Path]]:
+    return resolve_targets(
+        targets,
+        directory=directory,
+        project=project,
+        configured=cfg.targets,
+        install_dir=cfg.install_dir,
+        custom=cfg.custom_targets,
+    )
 
 
 # -- setup -------------------------------------------------------------------------------
@@ -195,14 +220,17 @@ def init(
         ),
     ] = None,
     author: Annotated[str | None, typer.Option(help="Default author for new skills.")] = None,
-    install_dir: Annotated[str | None, typer.Option(help="Default install directory.")] = None,
+    target: Annotated[
+        list[str] | None,
+        typer.Option("--target", "-t", help="Default install target(s), e.g. opencode."),
+    ] = None,
 ) -> None:
     """Create the configuration and initialise the skill store."""
     if mode not in MODES:
         raise OwlError(f"--mode must be one of: {', '.join(MODES)}")
     if backend not in BACKENDS:
         raise OwlError(f"--backend must be one of: {', '.join(BACKENDS)}")
-    cfg = load_config() if paths.config_file().exists() else Config()
+    cfg = load_config()
     cfg.mode = mode
     cfg.store = StoreConfig(
         backend=backend,
@@ -219,8 +247,9 @@ def init(
     )
     if author:
         cfg.author = author.lower()
-    if install_dir:
-        cfg.install_dir = install_dir
+    if target:
+        resolve_targets(target, custom=cfg.custom_targets)  # validates the names
+        cfg.targets = target
     if backend == "git":
         repo = expand(cfg.store.location)
         if not gitutil.is_repo(repo):
@@ -475,90 +504,133 @@ def topics(remote: RemoteOpt = None, local: LocalOpt = False, as_json: JsonOpt =
 
 @app.command()
 def install(
-    source: Annotated[
-        str,
+    sources: Annotated[
+        list[str] | None,
         typer.Argument(
-            help="A skill from the store (author/name), a git URL or a local directory.",
+            help="Skills from the store (author/name or name), git URLs or local directories.",
             autocompletion=complete_ref,
         ),
-    ],
+    ] = None,
     skill: Annotated[
         list[str] | None,
         typer.Option("--skill", "-s", help="Install only these skills from a repository."),
     ] = None,
     everything: Annotated[
-        bool, typer.Option("--all", help="Install every skill found in the repository.")
+        bool,
+        typer.Option(
+            "--all",
+            help="Every skill of a repository - or, without SOURCES, of the selected --remote.",
+        ),
     ] = False,
-    directory: Annotated[
-        str | None, typer.Option("--dir", "-d", help="Target skills directory.")
+    author: Annotated[
+        str | None,
+        typer.Option(
+            "--author", "-a", help="With --all: only this author.", autocompletion=complete_author
+        ),
     ] = None,
-    project: Annotated[
-        bool, typer.Option("--project", "-p", help="Install into ./.claude/skills.")
-    ] = False,
+    tag: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--tag", help="With --all: only skills with this tag.", autocompletion=complete_tag
+        ),
+    ] = None,
+    topic: Annotated[
+        list[str] | None,
+        typer.Option("--topic", help="With --all: only this topic.", autocompletion=complete_topic),
+    ] = None,
+    target: TargetOpt = None,
+    directory: DirOpt = None,
+    project: ProjectOpt = False,
     ref: Annotated[str | None, typer.Option("--ref", help="Branch or tag (git sources).")] = None,
     subdir: Annotated[str | None, typer.Option(help="Only look below this sub-directory.")] = None,
     remote: RemoteOpt = None,
     local: LocalOpt = False,
     force: Annotated[bool, typer.Option("--force", help="Overwrite foreign directories.")] = False,
 ) -> None:
-    """Install skills from the store, a git repository or a directory."""
+    """Install skills for one or more tools (Claude Code, OpenCode, Codex, ...), globally or per project."""
     cfg = load_config()
-    target = _skill_dir_default(cfg, directory, project)
+    destinations = _target_dirs(cfg, target, directory, project)
     chosen: list[tuple[Skill, str]] = []
-    from_path = gitutil.is_git_url(source) or (not remote and Path(source).expanduser().exists())
-    if from_path:
-        with load_source(source, default_author=cfg.author, ref=ref, subdir=subdir) as found:
-            valid = [r for r in found if r.valid]
-            for r in found:
-                if not r.valid:
-                    err_console.print(
-                        f"[yellow]skipped[/yellow] {r.path}: {escape('; '.join(r.problems))}"
-                    )
-            if skill:
-                valid = [r for r in valid if r.skill.name in skill]
-            if not valid:
-                raise OwlError("No matching valid skills found")
-            if len(valid) > 1 and not (everything or skill):
-                names = ", ".join(r.skill.name for r in valid)
-                raise OwlError(
-                    f"{len(valid)} skills found ({names}); choose with --skill or use --all"
-                )
-            chosen = [(r.skill, source) for r in valid]
-    else:
+    if not sources:
+        if not everything:
+            raise OwlError("Name at least one skill or source, or use --all with --remote")
         with _one(remote, local) as store:
-            chosen = [(store.get_ref(source), store.label)]
+            query = SearchQuery(author=author, tags=tag or [], topics=topic or [], limit=100000)
+            for summary in store.search(query):
+                chosen.append((store.get_ref(summary.ref), store.label))
+        if not chosen:
+            raise OwlError("No skills matched")
+    for source in sources or []:
+        from_path = gitutil.is_git_url(source) or (
+            not remote and Path(source).expanduser().exists()
+        )
+        if from_path:
+            with load_source(source, default_author=cfg.author, ref=ref, subdir=subdir) as found:
+                valid = [r for r in found if r.valid]
+                for r in found:
+                    if not r.valid:
+                        err_console.print(
+                            f"[yellow]skipped[/yellow] {r.path}: {escape('; '.join(r.problems))}"
+                        )
+                if skill:
+                    valid = [r for r in valid if r.skill.name in skill]
+                if not valid:
+                    raise OwlError(f"No matching valid skills found in {source}")
+                if len(valid) > 1 and not (everything or skill):
+                    names = ", ".join(r.skill.name for r in valid)
+                    raise OwlError(
+                        f"{len(valid)} skills found ({names}); choose with --skill or use --all"
+                    )
+                chosen.extend((r.skill, source) for r in valid)
+        else:
+            with _one(remote, local) as store:
+                chosen.append((store.get_ref(source), store.label))
     for item, origin in chosen:
-        dest = install_skill(item, target, source=origin, force=force)
-        console.print(f"[green]installed[/green] {item.ref} -> {dest}")
+        for tname, tdir in destinations:
+            dest = install_skill(item, tdir, source=origin, force=force)
+            console.print(f"[green]installed[/green] {item.ref} -> {dest}  [dim]({tname})[/dim]")
 
 
 @app.command()
 def uninstall(
-    name: Annotated[str, typer.Argument(autocompletion=complete_installed)],
-    directory: Annotated[str | None, typer.Option("--dir", "-d")] = None,
-    project: Annotated[bool, typer.Option("--project", "-p")] = False,
+    names: Annotated[list[str], typer.Argument(autocompletion=complete_installed)],
+    target: TargetOpt = None,
+    directory: DirOpt = None,
+    project: ProjectOpt = False,
 ) -> None:
-    """Remove a skill that was installed by owl."""
-    dest = uninstall_skill(name, _skill_dir_default(load_config(), directory, project))
-    console.print(f"[green]removed[/green] {dest}")
+    """Remove skills that were installed by owl."""
+    for tname, tdir in _target_dirs(load_config(), target, directory, project):
+        for name in names:
+            try:
+                dest = uninstall_skill(name, tdir)
+            except OwlError as exc:
+                err_console.print(f"[yellow]{tname}:[/yellow] {escape(str(exc))}")
+                continue
+            console.print(f"[green]removed[/green] {dest}")
 
 
 @app.command()
 def installed(
-    directory: Annotated[str | None, typer.Option("--dir", "-d")] = None,
-    project: Annotated[bool, typer.Option("--project", "-p")] = False,
+    target: TargetOpt = None,
+    directory: DirOpt = None,
+    project: ProjectOpt = False,
     as_json: JsonOpt = False,
 ) -> None:
     """List skills installed by owl."""
-    target = _skill_dir_default(load_config(), directory, project)
-    items = list_installed(target)
+    rows = [
+        (tname, i)
+        for tname, tdir in _target_dirs(load_config(), target, directory, project)
+        for i in list_installed(tdir)
+    ]
     if as_json:
-        typer.echo(json.dumps([{**vars(i), "path": str(i.path)} for i in items], indent=2))
+        typer.echo(
+            json.dumps([{**vars(i), "target": t, "path": str(i.path)} for t, i in rows], indent=2)
+        )
         return
-    if not items:
-        err_console.print(f"[yellow]Nothing installed by owl in {target}[/yellow]")
-    for i in items:
-        typer.echo(f"{i.ref}\t{i.version}\t{i.path}")
+    if not rows:
+        err_console.print("[yellow]Nothing installed by owl in the selected targets[/yellow]")
+    for tname, i in rows:
+        typer.echo(f"{i.ref}\t{i.version}\t{tname}\t{i.path}")
 
 
 # -- remotes, pull and push --------------------------------------------------------------
@@ -578,7 +650,9 @@ def remote_add(
 ) -> None:
     """Register an OWL server."""
     cfg = load_config()
-    cfg.remotes[name] = Remote(url=url.rstrip("/"), token=token, token_env=token_env)
+    cfg.remotes[name] = Remote(
+        url=url.rstrip("/"), token=token, token_env=token_env
+    )  # kind: server
     if default or cfg.default_remote is None:
         cfg.default_remote = name
     save_config(cfg)
@@ -587,11 +661,11 @@ def remote_add(
 
 @remote_app.command("list")
 def remote_list() -> None:
-    """List configured remotes."""
+    """List configured remotes (servers and registries)."""
     cfg = load_config()
     for name, r in cfg.remotes.items():
         marker = "*" if name == cfg.default_remote else " "
-        typer.echo(f"{marker} {name}\t{r.url}")
+        typer.echo(f"{marker} {name}\t{r.kind}\t{r.url}")
 
 
 @remote_app.command("remove")
@@ -636,6 +710,11 @@ def _transfer(
 ) -> None:
     cfg = load_config()
     name = _pick_remote(cfg, remote_name)
+    if direction == "push" and cfg.remote(name).kind == "registry":
+        raise OwlError(
+            f"'{name}' is a read-only registry: contribute with a pull request, or "
+            "`owl registry publish` into a local checkout"
+        )
     local = open_store(cfg.store)
     remote = open_remote(cfg, name)
     conflicts = 0
@@ -784,7 +863,7 @@ def serve(
         store.close()
 
 
-from owl import cli_tools  # noqa: E402,F401  (registers further commands on ``app``)
+from owl import cli_registry, cli_tools  # noqa: E402,F401  (register further commands)
 
 
 def main() -> None:

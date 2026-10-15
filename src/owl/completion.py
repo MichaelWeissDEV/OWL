@@ -76,12 +76,28 @@ def complete_remote(incomplete: str) -> list[str]:
         return []
 
 
+def complete_target(incomplete: str) -> list[str]:
+    try:
+        from owl.config import load_config
+        from owl.targets import all_targets
+
+        names = [*all_targets(load_config().custom_targets), "all"]
+        return sorted(n for n in names if n.startswith(incomplete))
+    except Exception:  # noqa: BLE001
+        return []
+
+
 def complete_installed(incomplete: str) -> list[str]:
     try:
-        from owl.config import expand, load_config
+        from owl.config import load_config
         from owl.installer import list_installed
+        from owl.targets import resolve_targets
 
-        target = expand(load_config().install_dir)
-        return sorted(i.name for i in list_installed(target) if i.name.startswith(incomplete))
+        cfg = load_config()
+        dirs = resolve_targets(
+            None, configured=cfg.targets, install_dir=cfg.install_dir, custom=cfg.custom_targets
+        )
+        names = {i.name for _t, d in dirs for i in list_installed(d)}
+        return sorted(n for n in names if n.startswith(incomplete))
     except Exception:  # noqa: BLE001
         return []

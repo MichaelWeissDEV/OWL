@@ -3,6 +3,7 @@
 | Variable | Read by | Description |
 | --- | --- | --- |
 | `OWL_HOME` | every command | base directory (default `~/.owl`) |
+| `OWL_DEFAULT_REGISTRY` | first config creation | registry URL added as `owl` on fresh installs (empty = none) |
 | `OWL_DB_URL` | `owl serve` | database to serve (`--db-url`) |
 | `OWL_SERVER_TOKEN` | `owl serve` | write token (`--token`) |
 | *`token_env` of a remote* | remote access | bearer token for that remote |

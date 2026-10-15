@@ -14,11 +14,14 @@ from rich.table import Table
 
 from owl import __version__, gitutil, paths
 from owl.cli import (
+    DirOpt,
     JsonOpt,
     LocalOpt,
+    ProjectOpt,
     RemoteOpt,
+    TargetOpt,
     _one,
-    _skill_dir_default,
+    _target_dirs,
     app,
     console,
     err_console,
@@ -36,6 +39,7 @@ from owl.models import NotFound, OwlError, Skill
 from owl.parsing import write_skill_dir
 from owl.sources import load_source
 from owl.stores import open_remote, open_store
+from owl.targets import all_targets
 
 # -- config ------------------------------------------------------------------------------
 
@@ -45,7 +49,8 @@ app.add_typer(config_app, name="config")
 SETTABLE = {
     "mode": "standalone | client | server",
     "author": "default author for new skills",
-    "install_dir": "default install directory",
+    "install_dir": "custom install directory replacing the targets (empty to unset)",
+    "targets": "comma separated install targets, e.g. claude,opencode",
     "default_remote": "name of the default remote (or empty to unset)",
 }
 
@@ -90,7 +95,16 @@ def config_set(key: str, value: str) -> None:
     elif key == "author":
         cfg.author = value.lower()
     elif key == "install_dir":
-        cfg.install_dir = value
+        cfg.install_dir = value or None
+    elif key == "targets":
+        names = [v.strip() for v in value.split(",") if v.strip()]
+        unknown = set(names) - set(all_targets(cfg.custom_targets))
+        if not names or unknown:
+            raise OwlError(
+                f"Unknown targets: {', '.join(sorted(unknown)) or '(none given)'}. "
+                f"Known: {', '.join(sorted(all_targets(cfg.custom_targets)))}"
+            )
+        cfg.targets = names
     elif key == "default_remote":
         if value:
             cfg.remote(value)
@@ -127,32 +141,43 @@ def _latest(cfg: Config, item: Installed) -> Skill | None:
 
 
 def _check(
-    directory: str | None, project: bool, names: list[str] | None
-) -> tuple[Path, Config, list[tuple[Installed, Skill | None]]]:
-    cfg = load_config()
-    target = _skill_dir_default(cfg, directory, project)
-    items = list_installed(target)
-    if names:
-        unknown = set(names) - {i.name for i in items}
-        if unknown:
-            raise NotFound(f"Not installed by owl: {', '.join(sorted(unknown))}")
-        items = [i for i in items if i.name in names]
-    return target, cfg, [(i, _latest(cfg, i)) for i in items]
+    cfg: Config,
+    targets: list[str] | None,
+    directory: str | None,
+    project: bool,
+    names: list[str] | None,
+) -> list[tuple[str, Path, Installed, Skill | None]]:
+    rows: list[tuple[str, Path, Installed, Skill | None]] = []
+    found: set[str] = set()
+    for tname, tdir in _target_dirs(cfg, targets, directory, project):
+        for item in list_installed(tdir):
+            if names and item.name not in names:
+                continue
+            found.add(item.name)
+            rows.append((tname, tdir, item, _latest(cfg, item)))
+    unknown = set(names or []) - found
+    if unknown:
+        raise NotFound(f"Not installed by owl: {', '.join(sorted(unknown))}")
+    return rows
 
 
 @app.command()
 def outdated(
-    directory: Annotated[str | None, typer.Option("--dir", "-d")] = None,
-    project: Annotated[bool, typer.Option("--project", "-p")] = False,
+    target: TargetOpt = None,
+    directory: DirOpt = None,
+    project: ProjectOpt = False,
     as_json: JsonOpt = False,
 ) -> None:
     """Show installed skills whose source has a newer version."""
-    _target, _cfg, checked = _check(directory, project, None)
-    rows = [(i, new) for i, new in checked if new is not None and new.sha256 != i.sha256]
+    checked = _check(load_config(), target, directory, project, None)
+    rows = [(t, i, new) for t, _d, i, new in checked if new is not None and new.sha256 != i.sha256]
     if as_json:
         typer.echo(
             json.dumps(
-                [{"ref": i.ref, "installed": i.version, "available": n.version} for i, n in rows],
+                [
+                    {"ref": i.ref, "target": t, "installed": i.version, "available": n.version}
+                    for t, i, n in rows
+                ],
                 indent=2,
             )
         )
@@ -160,10 +185,10 @@ def outdated(
         console.print("[green]Everything is up to date.[/green]")
     else:
         table = Table(header_style="bold")
-        for column in ("Skill", "Installed", "Available", "Source"):
+        for column in ("Skill", "Target", "Installed", "Available", "Source"):
             table.add_column(column)
-        for i, new in rows:
-            table.add_row(i.ref, i.version, new.version, i.source)
+        for t, i, new in rows:
+            table.add_row(i.ref, t, i.version, new.version, i.source)
         console.print(table)
     raise typer.Exit(1 if rows and not as_json else 0)
 
@@ -171,25 +196,26 @@ def outdated(
 @app.command()
 def update(
     names: Annotated[list[str] | None, typer.Argument(autocompletion=complete_installed)] = None,
-    directory: Annotated[str | None, typer.Option("--dir", "-d")] = None,
-    project: Annotated[bool, typer.Option("--project", "-p")] = False,
+    target: TargetOpt = None,
+    directory: DirOpt = None,
+    project: ProjectOpt = False,
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Only show what would change.")
     ] = False,
 ) -> None:
     """Re-install installed skills whose source has a newer version (all when no name given)."""
-    target, _cfg, checked = _check(directory, project, names)
     changed = 0
-    for item, new in checked:
+    for tname, tdir, item, new in _check(load_config(), target, directory, project, names):
+        label = f"{item.ref} [dim]({tname})[/dim]"
         if new is None:
-            console.print(f"[yellow]unavailable[/yellow] {item.ref} (source: {item.source})")
+            console.print(f"[yellow]unavailable[/yellow] {label} (source: {item.source})")
         elif new.sha256 == item.sha256:
-            console.print(f"[dim]up to date[/dim]  {item.ref}")
+            console.print(f"[dim]up to date[/dim]  {label}")
         elif dry_run:
-            console.print(f"[cyan]would update[/cyan] {item.ref} {item.version} -> {new.version}")
+            console.print(f"[cyan]would update[/cyan] {label} {item.version} -> {new.version}")
         else:
-            install_skill(new, target, source=item.source, force=True)
-            console.print(f"[green]updated[/green] {item.ref} {item.version} -> {new.version}")
+            install_skill(new, tdir, source=item.source, force=True)
+            console.print(f"[green]updated[/green] {label} {item.version} -> {new.version}")
             changed += 1
     console.print(f"{changed} skill(s) updated")
 
@@ -366,8 +392,8 @@ def doctor() -> None:
             _check_row(
                 table, "WARN", f"extra [{extra}]", f"not installed (pip install 'owl[{extra}]')"
             )
-    target = expand(cfg.install_dir)
-    _check_row(table, "OK" if target.exists() else "WARN", "install dir", str(target))
+    for tname, tdir in _target_dirs(cfg, None, None, False):
+        _check_row(table, "OK" if tdir.exists() else "WARN", f"install target {tname}", str(tdir))
     for name in cfg.remotes:
         store = open_remote(cfg, name)
         try:
@@ -381,3 +407,41 @@ def doctor() -> None:
             store.close()
     console.print(table)
     raise typer.Exit(1 if failed else 0)
+
+
+# -- targets -----------------------------------------------------------------------------
+
+
+@app.command()
+def targets(as_json: JsonOpt = False) -> None:
+    """List the tools OWL can install skills for, with their global and project directories."""
+    cfg = load_config()
+    known = all_targets(cfg.custom_targets)
+    if as_json:
+        typer.echo(
+            json.dumps(
+                [
+                    {
+                        "name": t.name,
+                        "description": t.description,
+                        "global": t.global_dir,
+                        "project": t.project_dir,
+                        "default": t.name in cfg.targets,
+                    }
+                    for t in known.values()
+                ],
+                indent=2,
+            )
+        )
+        return
+    table = Table(header_style="bold")
+    for column in ("", "Target", "Tool", "Global (-g)", "Project (-p)"):
+        table.add_column(column)
+    for t in known.values():
+        table.add_row(
+            "*" if t.name in cfg.targets else "", t.name, t.description, t.global_dir, t.project_dir
+        )
+    console.print(table)
+    console.print(
+        "[dim]* = default target. Change with: owl config set targets claude,opencode[/dim]"
+    )

@@ -45,9 +45,9 @@ def is_repo(path: Path) -> bool:
     return (path / ".git").exists()
 
 
-def init(path: Path) -> None:
+def init(path: Path, branch: str | None = None) -> None:
     path.mkdir(parents=True, exist_ok=True)
-    _git(["init", "--quiet"], cwd=path)
+    _git(["init", "--quiet", *(["-b", branch] if branch else [])], cwd=path)
 
 
 def set_remote(path: Path, url: str) -> None:
@@ -118,3 +118,9 @@ def pull(path: Path) -> None:
 
 def push(path: Path) -> None:
     _git(["push", "--quiet", "-u", "origin", "HEAD"], cwd=path)
+
+
+def fetch_reset(path: Path, ref: str | None = None) -> None:
+    """Update a shallow clone to the latest commit of *ref* (default: the remote's HEAD)."""
+    _git(["fetch", "--quiet", "--depth", "1", "origin", ref or "HEAD"], cwd=path)
+    _git(["reset", "--quiet", "--hard", "FETCH_HEAD"], cwd=path)

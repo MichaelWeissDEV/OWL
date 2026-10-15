@@ -6,6 +6,7 @@ Complete, copy-pasteable scenarios. Each one states what you end up with.
 :maxdepth: 1
 
 personal-library
+own-registry
 git-repo-library
 team-server
 multi-server

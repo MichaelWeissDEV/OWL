@@ -13,12 +13,24 @@ from owl.models import NotFound, OwlError
 
 MODES = ("standalone", "client", "server")
 BACKENDS = ("sqlite", "postgres", "git")
-DEFAULT_INSTALL_DIR = "~/.claude/skills"
+DEFAULT_REGISTRY_NAME = "owl"
+DEFAULT_REGISTRY_URL = "https://github.com/MichaelWeissDEV/owl-registry.git"
+_LEGACY_INSTALL_DIR = "~/.claude/skills"
+
+
+def default_registry_url() -> str:
+    """URL of the registry pre-configured on fresh installs.
+
+    ``OWL_DEFAULT_REGISTRY`` overrides it; set it to an empty string to start without one.
+    """
+    return os.environ.get("OWL_DEFAULT_REGISTRY", DEFAULT_REGISTRY_URL)
 
 
 @dataclass
 class Remote:
     url: str
+    kind: str = "server"  #: "server" (OWL HTTP API) or "registry" (git repository, read-only)
+    ref: str | None = None  #: registry only: branch or tag
     token: str | None = None
     token_env: str | None = None  #: read the token from this environment variable instead
 
@@ -46,7 +58,9 @@ class Config:
     store: StoreConfig = field(default_factory=StoreConfig)
     remotes: dict[str, Remote] = field(default_factory=dict)
     default_remote: str | None = None
-    install_dir: str = DEFAULT_INSTALL_DIR
+    install_dir: str | None = None  #: optional custom directory replacing the targets (global)
+    targets: list[str] = field(default_factory=lambda: ["claude"])
+    custom_targets: dict[str, dict[str, str]] = field(default_factory=dict)
 
     def remote(self, name: str) -> Remote:
         try:
@@ -65,6 +79,8 @@ class Config:
             },
             "default_remote": self.default_remote,
             "install_dir": self.install_dir,
+            "targets": self.targets,
+            "custom_targets": self.custom_targets,
         }
 
     @classmethod
@@ -77,7 +93,13 @@ class Config:
             store=store,
             remotes=remotes,
             default_remote=data.get("default_remote"),
-            install_dir=data.get("install_dir", DEFAULT_INSTALL_DIR),
+            install_dir=(
+                None
+                if data.get("install_dir") in (None, "", _LEGACY_INSTALL_DIR)
+                else data["install_dir"]
+            ),
+            targets=list(data.get("targets") or ["claude"]),
+            custom_targets=dict(data.get("custom_targets") or {}),
         )
 
 
@@ -85,6 +107,8 @@ def load_config() -> Config:
     """Load the config; a missing file yields the defaults (a SQLite DB below OWL_HOME)."""
     file = paths.config_file()
     config = Config()
+    if not file.is_file() and default_registry_url():
+        config.remotes[DEFAULT_REGISTRY_NAME] = Remote(url=default_registry_url(), kind="registry")
     if file.is_file():
         try:
             config = Config.from_dict(json.loads(file.read_text("utf-8")))

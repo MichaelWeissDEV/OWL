@@ -13,10 +13,13 @@ Location: `$OWL_HOME/config.json` (default `~/.owl/config.json`), mode `0600`.
     "url_env": null
   },
   "remotes": {
-    "team": {"url": "https://skills.example.com", "token": null, "token_env": "OWL_TEAM_TOKEN"}
+    "owl": {"url": "https://github.com/MichaelWeissDEV/owl-registry.git", "kind": "registry"},
+    "team": {"url": "https://skills.example.com", "kind": "server", "token_env": "OWL_TEAM_TOKEN"}
   },
   "default_remote": "team",
-  "install_dir": "~/.claude/skills"
+  "targets": ["claude"],
+  "custom_targets": {},
+  "install_dir": null
 }
 ```
 
@@ -31,7 +34,9 @@ Keys with `null` values are omitted when OWL writes the file.
 | `store` | object | sqlite in `$OWL_HOME` | where the local library lives |
 | `remotes` | object | `{}` | named servers |
 | `default_remote` | string \| null | `null` | remote used by `-r`-less commands in client mode, and by `pull`/`push`/`diff` |
-| `install_dir` | string | `~/.claude/skills` | install target (`~` expanded) |
+| `targets` | list of strings | `["claude"]` | default install targets (built-in or custom names) |
+| `custom_targets` | object | `{}` | `name → {global, project, description}` |
+| `install_dir` | string \| null | `null` | optional directory that replaces the targets for global installs |
 
 ## `store`
 
@@ -46,7 +51,9 @@ Keys with `null` values are omitted when OWL writes the file.
 
 | Key | Type | Description |
 | --- | --- | --- |
-| `url` | string | base URL without `/api/v1`, e.g. `https://skills.example.com` |
+| `url` | string | server: base URL without `/api/v1`; registry: git URL or local directory |
+| `kind` | `server` \| `registry` | default `server` |
+| `ref` | string \| null | registry only: branch or tag to follow |
 | `token` | string \| null | bearer token stored in the file |
 | `token_env` | string \| null | environment variable holding the token (wins over `token`) |
 

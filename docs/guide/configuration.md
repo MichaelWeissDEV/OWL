@@ -13,11 +13,13 @@ mode, SQLite database `$OWL_HOME/skills.sqlite3`.
     "location": "/home/michael/.owl/skills.sqlite3"
   },
   "remotes": {
+    "owl":    { "url": "https://github.com/MichaelWeissDEV/owl-registry.git", "kind": "registry" },
     "team":   { "url": "https://skills.example.com", "token_env": "OWL_TEAM_TOKEN" },
     "public": { "url": "https://owl.example.org" }
   },
   "default_remote": "team",
-  "install_dir": "~/.claude/skills"
+  "targets": ["claude", "opencode"],
+  "custom_targets": {}
 }
 ```
 
@@ -27,7 +29,7 @@ The complete field list is in {doc}`../reference/config-file`.
 
 | What | Command |
 | --- | --- |
-| mode, author, install dir, default remote | `owl config set KEY VALUE` |
+| mode, author, targets, install dir, default remote | `owl config set KEY VALUE` |
 | store backend and location | `owl init --backend … --location …` |
 | remotes | `owl remote add/remove` |
 | anything else | edit the JSON (it is validated on load) |
@@ -51,6 +53,7 @@ containing a password are shown as stored – prefer `--url-env`.
 | Variable | Used by | Meaning |
 | --- | --- | --- |
 | `OWL_HOME` | all | directory for config, state and default data (default `~/.owl`) |
+| `OWL_DEFAULT_REGISTRY` | first config creation | URL of the registry added as `owl` on a fresh install; set to an empty string for none |
 | `OWL_DB_URL` | `owl serve` | database to serve |
 | `OWL_SERVER_TOKEN` | `owl serve` | write token |
 | *(any name)* | remotes / store | referenced by `token_env` / `url_env` |

@@ -35,9 +35,13 @@ def open_store(cfg: StoreConfig, label: str = "local") -> SkillStore:
 
 def open_remote(config: Config, name: str) -> SkillStore:
     """Open the configured remote *name* as a store."""
+    from owl import paths
+    from owl.stores.registry import RegistryStore
     from owl.stores.remote import RemoteStore
 
     remote = config.remote(name)
+    if remote.kind == "registry":
+        return RegistryStore(remote.url, name, paths.home() / "registries" / name, ref=remote.ref)
     return RemoteStore(remote.url, remote.resolved_token(), label=name)
 
 

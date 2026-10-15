@@ -7,6 +7,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/); versions follow
 
 ### Added
 
+- **Registries**: git repositories with a generated `index.json` / `INDEX.md` (with per-skill last update), a CI workflow template and the commands `owl registry init|publish|index|add|list|remove|update`. The default registry `owl` (`MichaelWeissDEV/owl-registry`) is configured on fresh installs.
+- **Install targets**: native support for Claude Code, OpenCode, Codex CLI, Gemini CLI, GitHub Copilot and Cursor (`owl targets`, `--target`, `--project`), custom targets, several targets per install, `install --all -r REMOTE` with filters, multiple sources per `install`.
+
 - Three storage backends: SQLite, PostgreSQL (with `pg_trgm` indexes) and a git/plain-file layout.
 - Server mode (`owl serve`) with token-protected writes, optional private reads, OpenAPI docs and a
   small HTML page.
@@ -20,6 +23,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/); versions follow
 - Documentation (Sphinx, Read the Docs ready), CI with a PostgreSQL service, Dockerfile.
 
 ### Changed
+
+- `install_dir` is now an optional override; the default is the `targets` list (initially `claude`). `owl init --install-dir` became `--target`.
+- `outdated`, `update`, `installed`, `uninstall` operate on all selected targets.
 
 - The project was rewritten from a minimal SQLite scanner into a full skill manager; the previous
   `scan`/`parse` commands were replaced by `add`/`validate`.

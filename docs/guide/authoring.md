@@ -52,7 +52,7 @@ Use `owl export --layout repo` to convert a database library into OWL's native g
 
 ```console
 $ owl add ./skills/sql-review
-$ owl install sql-review -p           # into ./.claude/skills of the current project
+$ owl install sql-review -p           # into the current project (.claude/skills; add -t opencode for OpenCode)
 ```
 
 Re-run `owl add` after edits; unchanged skills are detected by hash and left alone, changed skills

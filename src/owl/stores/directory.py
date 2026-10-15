@@ -17,7 +17,7 @@ from pathlib import Path
 
 from owl.models import InvalidSkill, SearchQuery, Skill, SkillSummary, validate_skill
 from owl.parsing import SKILL_FILE, load_skill_dir, write_skill_dir
-from owl.stores.base import FACET_KINDS, SkillStore, rank
+from owl.stores.base import FACET_KINDS, SkillStore, filter_and_rank
 
 SKILLS_SUBDIR = "skills"
 
@@ -103,29 +103,9 @@ class DirectoryStore(SkillStore):
             return True
 
     def search(self, query: SearchQuery) -> list[SkillSummary]:
-        terms = query.terms()
-        results: list[SkillSummary] = []
-        for skill in self._load_all().values():
-            if query.author and skill.author != query.author.lower():
-                continue
-            if any(t.lower() not in skill.tags for t in query.tags):
-                continue
-            if any(t.lower() not in skill.topics for t in query.topics):
-                continue
-            haystack = [
-                skill.name,
-                skill.description,
-                skill.author,
-                skill.content,
-                *skill.tags,
-                *skill.topics,
-            ]
-            lowered = [h.lower() for h in haystack]
-            if any(not any(term in h for h in lowered) for term in terms):
-                continue
-            results.append(skill.summary(self.label))
-        results.sort(key=lambda s: (rank(s, terms), s.author, s.name))
-        return results[query.offset : query.offset + query.limit]
+        return filter_and_rank(
+            ((sk.summary(self.label), sk.content) for sk in self._load_all().values()), query
+        )
 
     def facets(self, kind: str) -> list[tuple[str, int]]:
         if kind not in FACET_KINDS:
