@@ -8,12 +8,16 @@ There is no database; history, review, branches and hosting come from git.
 ```text
 <working copy>/
 └── skills/
-    └── <author>/
-        └── <name>/
-            ├── SKILL.md
-            ├── skill.json
-            └── ...bundled files
+    └── <name>/            the directory name equals the skill name
+        ├── SKILL.md
+        ├── skill.json     author, version, tags, topics, ... (the author is metadata)
+        └── ...bundled files
 ```
+
+Names are unique per library: adding a second skill with the same name from a *different author* is
+refused with a clear message instead of overwriting the first. A library in the older
+`skills/<author>/<name>/` layout is still readable; convert it with `owl registry migrate`
+({doc}`registries`).
 
 `skill.json` holds the normalised metadata (see {doc}`skill-format`), `SKILL.md` is stored verbatim.
 Files are written byte for byte – no newline translation – so the content hash is stable across
@@ -46,7 +50,7 @@ $ owl init --backend git --location ~/work/my-skills --git-url https://github.co
 Everything that works with SQLite works here too:
 
 ```console
-$ owl add ./new-skill          # writes skills/<author>/<name>/...
+$ owl add ./new-skill          # writes skills/<name>/...
 $ owl search git
 $ owl install my-skill
 $ owl remove michael/old-skill -y
@@ -56,7 +60,7 @@ Edit files in the working copy directly if you like – OWL re-reads the directo
 A skill whose `SKILL.md` has become invalid is ignored with a warning on stderr:
 
 ```text
-owl: ignoring invalid skill /.../skills/michael/x: Invalid YAML: ...
+owl: ignoring invalid skill /.../skills/x: Invalid YAML: ...
 ```
 
 ## Synchronising: `owl sync`

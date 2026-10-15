@@ -45,6 +45,8 @@ napoleon_google_docstring = True
 
 html_theme = "furo"
 html_title = f"OWL {release}"
+html_logo = "_static/owl.png"
+html_favicon = "_static/favicon.png"
 html_static_path = ["_static"]
 html_theme_options = {
     "source_repository": "https://github.com/MichaelWeissDEV/OWL/",

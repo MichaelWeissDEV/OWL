@@ -285,3 +285,37 @@ def test_spec_warnings_and_description_limit(tmp_path):
     assert result.valid and any("differs from skill name" in w for w in result.warnings)
     too_long = make_skill("long", description="x" * 1025)
     assert any("1024" in p for p in validate_skill(too_long))
+
+
+def test_readme_badge_version_matches_pyproject():
+    import re
+    import tomllib
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    version = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
+    readme = (root / "README.md").read_text()
+    assert f"badge/version-{version}-blue" in readme
+    assert "status-alpha" in readme and "Development Status: Alpha" in readme
+    assert re.search(r"actions/workflows/ci\.yml/badge\.svg", readme)  # real CI badge
+    from owl import __version__
+
+    assert __version__ == version
+
+
+def test_logo_assets_exist_and_are_referenced():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    for rel in (
+        "assets/owl.png",
+        "assets/owl-256.png",
+        "assets/favicon.ico",
+        "docs/_static/owl.png",
+        "docs/_static/favicon.png",
+        "src/owl/assets/owl-256.png",
+    ):
+        assert (root / rel).is_file(), rel
+    assert (root / "assets/owl.png").stat().st_size > 100_000  # the original, not a thumbnail
+    assert "assets/owl-256.png" in (root / "README.md").read_text()
+    assert "_static/owl.png" in (root / "docs/index.md").read_text()

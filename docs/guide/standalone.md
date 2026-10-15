@@ -48,7 +48,7 @@ $ owl add SOURCE [--ref BRANCH] [--subdir PATH] [--author NAME] [--skill NAME ..
 
 ```console
 $ owl export michael/review-pr -o ./out            # ./out/review-pr/ (like an install dir)
-$ owl export --all -o ./repo --layout repo         # ./repo/skills/<author>/<name>/ + skill.json
+$ owl export --all -o ./repo --layout repo         # ./repo/skills/<name>/ + skill.json
 ```
 
 `--layout repo` produces OWL's native git layout – a database library becomes a git repository this

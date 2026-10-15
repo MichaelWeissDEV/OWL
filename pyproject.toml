@@ -7,6 +7,14 @@ authors = [
     { name = "Michael", email = "150333378+MichaelWeissDEV@users.noreply.github.com" }
 ]
 requires-python = ">=3.13"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
+]
+keywords = ["ai", "agents", "skills", "skill-manager", "git", "registry"]
 dependencies = [
     "SQLAlchemy>=2.0,<3",
     "PyYAML>=6.0,<7",

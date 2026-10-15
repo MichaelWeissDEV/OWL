@@ -1,4 +1,17 @@
+<p align="center"><img src="_static/owl.png" alt="OWL logo" width="160"></p>
+
 # OWL
+
+**A Git-native, self-hostable skill manager for AI agents.**
+
+```{admonition} Development status: Alpha
+:class: warning
+
+OWL is under active development. The CLI, the registry format and the HTTP API can still change,
+so be careful with production use. Bug reports and contributions are welcome – see
+{doc}`development/contributing`. OWL is not on PyPI yet; install it from source
+({doc}`getting-started/installation`).
+```
 
 **OWL is a skill manager.** It stores *skills* – a `SKILL.md` with YAML frontmatter plus optional
 bundled files, as used by Claude Code and other agent frameworks – in a SQLite database, a

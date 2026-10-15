@@ -1,10 +1,14 @@
 """Directory store: skills as plain files, ready to be versioned in a git repository.
 
-Layout::
+Layout (flat - the author is metadata, not a directory)::
 
-    <root>/skills/<author>/<name>/SKILL.md
-    <root>/skills/<author>/<name>/skill.json   # metadata (author, version, tags, topics, ...)
-    <root>/skills/<author>/<name>/...          # any bundled files
+    <root>/skills/<name>/SKILL.md
+    <root>/skills/<name>/skill.json   # metadata (author, version, tags, topics, ...)
+    <root>/skills/<name>/...          # any bundled files
+
+The older layout ``skills/<author>/<name>/`` is still *read* (and reported via
+:attr:`DirectoryStore.legacy_layout`), but writing into it is refused until the repository has
+been converted with ``owl registry migrate``.
 """
 
 from __future__ import annotations
@@ -17,53 +21,83 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from owl.fsutil import replace_dir
-from owl.models import InvalidSkill, SearchQuery, Skill, SkillSummary, validate_skill
+from owl.models import (
+    InvalidSkill,
+    OwlError,
+    SearchQuery,
+    Skill,
+    SkillSummary,
+    validate_skill,
+)
 from owl.parsing import META_FILE, SKILL_FILE, load_skill_dir
 from owl.stores.base import FACET_KINDS, SkillStore, filter_and_rank
 
 SKILLS_SUBDIR = "skills"
 
 
+class NameCollision(OwlError):
+    """Two different skills would share one directory name."""
+
+
 class DirectoryStore(SkillStore):
     """Skills stored as directories below ``<root>/skills``."""
 
-    def __init__(self, root: str | Path, label: str = "local") -> None:
+    def __init__(
+        self, root: str | Path, label: str = "local", default_author: str = "local"
+    ) -> None:
         self.label = label
+        self.default_author = default_author
         self.root = Path(root).expanduser().resolve()
         self.base = self.root / SKILLS_SUBDIR
         self._lock = threading.RLock()
         self._cache: dict[tuple[str, str], Skill] | None = None
+        self._paths: dict[tuple[str, str], Path] = {}
+        self.legacy_layout = False
 
     # -- helpers ---------------------------------------------------------------------
 
-    def _skill_dir(self, author: str, name: str) -> Path:
-        return self.base / author / name
+    def _skill_dir(self, name: str) -> Path:
+        return self.base / name
+
+    def _read(self, directory: Path, author: str) -> Skill | None:
+        result = load_skill_dir(directory, default_author=author)
+        stamp = datetime.fromtimestamp((directory / SKILL_FILE).stat().st_mtime, UTC)
+        result.skill.created_at = result.skill.updated_at = stamp.isoformat(timespec="seconds")
+        if result.valid:
+            return result.skill
+        print(
+            f"owl: ignoring invalid skill {directory}: " + "; ".join(result.problems),
+            file=sys.stderr,
+        )
+        return None
 
     def _load_all(self) -> dict[tuple[str, str], Skill]:
         with self._lock:
             if self._cache is not None:
                 return self._cache
             cache: dict[tuple[str, str], Skill] = {}
+            paths: dict[tuple[str, str], Path] = {}
+            self.legacy_layout = False
             if self.base.is_dir():
-                for author_dir in sorted(p for p in self.base.iterdir() if p.is_dir()):
-                    for skill_dir in sorted(p for p in author_dir.iterdir() if p.is_dir()):
-                        if not (skill_dir / SKILL_FILE).is_file():
-                            continue
-                        result = load_skill_dir(skill_dir, default_author=author_dir.name)
-                        skill = result.skill
-                        stamp = datetime.fromtimestamp(
-                            (skill_dir / SKILL_FILE).stat().st_mtime, UTC
-                        ).isoformat(timespec="seconds")
-                        skill.created_at = skill.updated_at = stamp
-                        if result.valid:
+                for entry in sorted(p for p in self.base.iterdir() if p.is_dir()):
+                    if entry.name.startswith("."):
+                        continue
+                    if (entry / SKILL_FILE).is_file():
+                        candidates = [(entry, self.default_author)]
+                    else:  # legacy: skills/<author>/<name>/
+                        candidates = [
+                            (sub, entry.name)
+                            for sub in sorted(p for p in entry.iterdir() if p.is_dir())
+                            if (sub / SKILL_FILE).is_file()
+                        ]
+                        self.legacy_layout = self.legacy_layout or bool(candidates)
+                    for directory, author in candidates:
+                        skill = self._read(directory, author)
+                        if skill is not None:
                             cache[(skill.author, skill.name)] = skill
-                        else:
-                            print(
-                                f"owl: ignoring invalid skill {skill_dir}: "
-                                + "; ".join(result.problems),
-                                file=sys.stderr,
-                            )
+                            paths[(skill.author, skill.name)] = directory
             self._cache = cache
+            self._paths = paths
             return cache
 
     def refresh(self) -> None:
@@ -78,10 +112,26 @@ class DirectoryStore(SkillStore):
         if problems:
             raise InvalidSkill("; ".join(problems))
         with self._lock:
-            existing = self._load_all().get((skill.author, skill.name))
+            cache = self._load_all()
+            if self.legacy_layout:
+                raise OwlError(
+                    f"{self.base} uses the legacy skills/<author>/<name> layout; "
+                    "convert it first with `owl registry migrate`"
+                )
+            existing = cache.get((skill.author, skill.name))
             if existing is not None and existing.sha256 == skill.sha256:
                 return existing
-            dest = self._skill_dir(skill.author, skill.name)
+            owner = next((a for (a, n) in cache if n == skill.name and a != skill.author), None)
+            if owner is not None:
+                raise NameCollision(
+                    f"Skill name '{skill.name}' is already used by author '{owner}' in this "
+                    "registry; names are unique per registry - choose another name"
+                )
+            dest = self._skill_dir(skill.name)
+            if dest.exists() and existing is None:
+                raise NameCollision(
+                    f"{dest} exists but does not hold a valid skill; not overwriting"
+                )
             files = dict(skill.files)
             files[SKILL_FILE] = skill.content.encode("utf-8")
             files[META_FILE] = (
@@ -89,23 +139,28 @@ class DirectoryStore(SkillStore):
             ).encode("utf-8")
             replace_dir(dest, files)
             self.refresh()
-            stored = self._load_all()[(skill.author, skill.name)]
-        return stored
+            return self._load_all()[(skill.author, skill.name)]
 
     def get(self, author: str, name: str) -> Skill | None:
         return self._load_all().get((author.lower(), name))
 
     def delete(self, author: str, name: str) -> bool:
         with self._lock:
-            dest = self._skill_dir(author.lower(), name)
-            if not dest.is_dir():
+            self._load_all()
+            directory = self._paths.get((author.lower(), name))
+            if directory is None:
                 return False
-            shutil.rmtree(dest)
-            author_dir = dest.parent
-            if not any(author_dir.iterdir()):
-                author_dir.rmdir()
+            shutil.rmtree(directory)
+            parent = directory.parent
+            if parent != self.base and not any(parent.iterdir()):
+                parent.rmdir()
             self.refresh()
             return True
+
+    def path_of(self, author: str, name: str) -> Path | None:
+        """Directory of a skill (useful for provenance and tooling)."""
+        self._load_all()
+        return self._paths.get((author.lower(), name))
 
     def search(self, query: SearchQuery) -> list[SkillSummary]:
         return filter_and_rank(

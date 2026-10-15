@@ -10,4 +10,5 @@ ci
 release
 extending
 documentation
+licensing
 ```

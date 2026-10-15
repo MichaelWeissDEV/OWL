@@ -16,3 +16,8 @@ wheels/
 docs/_build/
 docs/reference/cli-commands.md
 /registry/
+
+# original logo sources kept by the author (copies live in assets/)
+/owl.png
+/owl.jpg
+/owl.jpg~

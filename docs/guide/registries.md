@@ -78,37 +78,76 @@ $ cd ~/work/my-registry && git add -A && git commit -m "feat: add pdf-tools" && 
 | File | Purpose |
 | --- | --- |
 | `registry.json` | marks the directory as a registry; name and description |
-| `skills/<author>/<name>/` | the skills (`SKILL.md`, `skill.json`, bundled files) |
-| `index.json`, `INDEX.md` | generated index and overview |
-| `.github/workflows/registry.yml` | CI that validates and keeps the index current |
-| `README.md`, `.gitignore` | usage notes for contributors |
+| `skills/<name>/` | the skills (`SKILL.md`, `skill.json`, bundled files); **flat** - the author is metadata |
+| `index.json`, `stats.json` | generated index and statistics (machine readable) |
+| `INDEX.md`, `STATS.md` | the same data, quick to read |
+| `.github/workflows/registry.yml` | CI that validates pull requests and keeps the generated files current |
+| `README.md`, `CONTRIBUTING.md`, `assets/owl.png`, `.gitignore` | usage notes, contribution rules, logo |
 
 `owl registry publish` copies skills (from directories, trees or git URLs) into the checkout,
-validates them and rewrites the index. Re-publishing an unchanged skill changes nothing.
+validates them and rewrites the generated files. Re-publishing an unchanged skill changes nothing.
+A skill whose **name is already used by a different author** is refused – names are unique per
+registry because the directory is `skills/<name>/`.
 
-### The index
+### Maintaining a registry
 
-`owl registry index [DIR]` regenerates both generated files; `--check` verifies they are current
-(exit 1 otherwise). The format is documented in {doc}`../reference/registry-format`. Highlights:
+| Command | Purpose |
+| --- | --- |
+| `owl registry check [DIR] [--fresh]` | validate everything read-only: structure, names, frontmatter, paths, symlinks, sizes, collisions, index consistency (`--fresh`: generated files must be current). Exit 1 on problems; this is what CI runs on pull requests |
+| `owl registry index [DIR] [--check]` | regenerate (or verify) `index.json`, `stats.json`, `INDEX.md`, `STATS.md`. Nothing is written if validation fails, so the last valid state survives |
+| `owl registry migrate [DIR] [--dry-run]` | convert the old `skills/<author>/<name>/` layout to `skills/<name>/` |
+| `owl registry upgrade [DIR] [--overwrite]` | migrate, add missing scaffold files and regenerate; `--overwrite` also refreshes the OWL-managed workflow, README and CONTRIBUTING |
 
-- `index.json` – every skill with `ref`, version, description, tags, topics, `sha256`, `path`,
-  `files` and **`updated_at`**; top-level `count` and `generated_at` (the newest `updated_at`).
-- `INDEX.md` – a compact table with links to each skill plus listings by topic and tag, meant to be
-  read quickly by people and by agents.
+### Migrating a registry from the old layout
+
+Older registries stored skills in `skills/<author>/<name>/`. The flat layout has priority;
+migrate with:
+
+```console
+$ owl registry migrate ~/work/my-registry --dry-run      # preview
+$ owl registry migrate ~/work/my-registry
+$ git -C ~/work/my-registry status                       # review, then commit
+```
+
+- Every skill is **copied**, verified (identical content hash; the author the old path implied is
+  written to `skill.json` if it was not declared) and only then removed from the old place.
+- Conflicts (two authors with the same skill name, a target directory that already exists, invalid
+  skills) **abort the whole migration before anything is touched**.
+- Running it again after success reports "nothing to migrate".
+- Old registries of other people stay *readable* by OWL clients without migration; only writing
+  requires the flat layout.
+
+### The generated files
+
+The formats are documented in {doc}`../reference/registry-format`. Highlights:
+
+- `index.json` – every skill with `ref`, author, version, description, tags, topics, license,
+  compatibility, `sha256`, `path`, file count, size, **`updated_at`** and git **`revision`**;
+  top-level `count` and `generated_at` (the newest `updated_at`).
+- `stats.json` – totals, skills per author, tag, topic, compatibility and license. Only facts that
+  derive from the registry itself – **no usage or download counts**.
+- `INDEX.md` / `STATS.md` – the same data as readable tables with links to every skill.
 - Deterministic: running the generator twice produces identical files, so CI commits only real
   changes.
 
-### CI keeps the index up to date
+### CI: validate pull requests, update after merge
 
-The generated workflow (`.github/workflows/registry.yml`)
+The generated workflow (`.github/workflows/registry.yml`) has two clearly separated jobs and starts
+with **no permissions at all**:
 
-1. on **pull requests** that touch `skills/**`: validates all skills (`owl validate skills`);
-2. on **pushes to `main`**: validates, runs `owl registry index .`, and commits `index.json` and
-   `INDEX.md` back as `github-actions[bot]` with `[skip ci]`.
+| Job | Runs on | Permissions | What it does |
+| --- | --- | --- | --- |
+| `validate` | pull requests *and* pushes | `contents: read` | `owl registry check .` – only reads files |
+| `index` | pushes to `main`, after `validate` succeeded | `contents: write` | `owl registry index .`, commits `index.json`, `stats.json`, `INDEX.md`, `STATS.md` as `github-actions[bot]` with `[skip ci]` – only when they changed |
 
-It checks out the full history (`fetch-depth: 0`) because `updated_at` comes from git: for a new or
-changed skill it is the commit time of the skill directory; while a skill's hash is unchanged its
-previous value is kept, so unrelated commits never touch it. No manual index maintenance is needed –
+Security properties: pull requests (including forks) never see a write token (`pull_request`, never
+`pull_request_target`); the privileged job runs only for code that is already on `main`; skill
+scripts are never executed (the registry is passive data); if validation fails the old generated
+files stay in place.
+
+`index` checks out the full history (`fetch-depth: 0`) because `updated_at` and `revision` come from
+git: for a new or changed skill they are the last commit touching the skill directory; while a
+skill's hash is unchanged the previous values are kept. No manual index maintenance is needed –
 never edit the generated files.
 
 ```{note}
@@ -117,12 +156,14 @@ fork OWL or pin a version, change that line (for example to `…OWL@v0.2.0`).
 ```
 
 For the push step to work, repository settings must allow workflow write access
-(*Settings → Actions → General → Workflow permissions: Read and write*).
+(*Settings → Actions → General → Workflow permissions: Read and write*). Other CI systems (GitLab CI,
+Forgejo Actions, …) only need to run the same two commands: `owl registry check .` for merge
+requests and `owl registry index .` plus a commit on the default branch.
 
 ### Contributing to a registry
 
-1. Fork, add `skills/<your-author>/<skill-name>/SKILL.md` (+ optional files).
-2. `owl validate skills` locally.
+1. Fork, add `skills/<skill-name>/SKILL.md` (+ optional files; `author:` goes into the metadata).
+2. `owl registry check .` locally.
 3. Open a pull request; CI validates; after merge the index updates itself.
 
 ## Registry or server?

@@ -1,26 +1,66 @@
-# OWL - a skill manager
+<p align="center">
+  <img src="assets/owl-256.png" alt="OWL logo - a friendly owl on a branch" width="160">
+</p>
 
-**Documentation:** build it with `cd docs && make html` (Sphinx, Read the Docs ready - see
-`.readthedocs.yaml`) or read the sources in [`docs/`](docs/index.md).
+<h1 align="center">OWL</h1>
 
-OWL manages **skills** (a `SKILL.md` with YAML frontmatter plus optional bundled files, as used
-by Claude Code and other agents). It keeps them in a database or a git repository, lets you
-search by text, author, tag and topic, installs them into your agent's skills directory and can
-synchronise them between machines through one or more **OWL servers**.
+<p align="center"><b>OWL – A Git-native, self-hostable skill manager for AI agents.</b></p>
 
+<p align="center">
+  <img alt="Development status: Alpha" src="https://img.shields.io/badge/status-alpha-orange">
+  <img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-blue">
+  <img alt="Python 3.13+" src="https://img.shields.io/badge/python-3.13%2B-3776AB?logo=python&amp;logoColor=white">
+  <a href="https://github.com/MichaelWeissDEV/OWL/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/MichaelWeissDEV/OWL/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://owl-skills.readthedocs.io"><img alt="Documentation" src="https://img.shields.io/badge/docs-Read%20the%20Docs-8CA1AF?logo=readthedocs&amp;logoColor=white"></a>
+  <a href="https://github.com/MichaelWeissDEV/owl-registry"><img alt="Default registry" src="https://img.shields.io/badge/registry-owl--registry-green"></a>
+  <img alt="Platforms: Linux, macOS" src="https://img.shields.io/badge/platforms-Linux%20%7C%20macOS-lightgrey">
+</p>
+
+> **Development Status: Alpha.** OWL is under active development. The CLI, the registry format and
+> the HTTP API can still change, so be careful before relying on it in production environments.
+> OWL is not on PyPI yet - install it from source (see below). Bug reports and contributions are
+> very welcome - see [Contributing](#contributing).
+
+OWL keeps your AI-agent **skills** (a `SKILL.md` with YAML frontmatter plus optional bundled files,
+the [Agent Skills](https://agentskills.io/specification) format) in one place and installs them
+wherever your tools look for them: Claude Code, OpenCode, Codex CLI, Gemini CLI, GitHub Copilot,
+Cursor and any custom directory.
+
+- **Git-first.** A *registry* is just a git repository with a generated index - no server, no
+  accounts; the git host handles access. OWL ships with a default one:
+  [`owl-registry`](https://github.com/MichaelWeissDEV/owl-registry).
+- **Offline-first.** Your local library (SQLite, or a plain git working copy) works without any
+  network or server.
+- **Self-hostable.** An optional OWL server (HTTP API, PostgreSQL) can be shared by a team.
+- **CLI-first.** Everything is scriptable (`--json`, exit codes, shell completion).
+- **Safe by default.** Updates never overwrite your local edits; path traversal and symlink escapes
+  are rejected; skills are only ever copied, never executed.
+
+## Quickstart
+
+```bash
+# install from source (Python 3.13+, git)
+git clone https://github.com/MichaelWeissDEV/OWL.git && cd OWL
+pip install ".[server,postgres]"          # or: uv sync --all-extras
+
+owl search commit -r owl                  # search the default registry
+owl install conventional-commits -r owl   # -> ~/.claude/skills (Claude Code)
+owl install conventional-commits -r owl -t opencode      # -> ~/.config/opencode/skills
+owl install conventional-commits -r owl -t opencode -p   # -> ./.opencode/skills (this project)
+owl outdated && owl update                # keep installed skills current
 ```
-            ┌────────────── standalone ──────────────┐
-            │  SQLite file   or   plain git repo     │
-            └────────────────────────────────────────┘
-   client ──── HTTP ────►  owl serve  ──►  SQLite / PostgreSQL / git repo
-   client ──── HTTP ────►  owl serve  ──►  (a second, independent server)
+
+Create and share your own registry:
+
+```bash
+owl registry init ./my-registry --name my-registry
+owl registry publish ./my-skill --dir ./my-registry     # validates, copies in, updates the index
 ```
 
-| Mode | What it is | Typical setup |
-| --- | --- | --- |
-| **standalone** | Local library only. | `owl init` (SQLite) or `owl init --backend git` |
-| **server** | `owl serve` exposes a store over HTTP. | `owl serve --db-url postgresql://...` |
-| **client** | Local library + any number of remote servers to search, `pull` from and `push` to. | `owl init --mode client`, `owl remote add ...` |
+## Documentation
+
+Full documentation: **<https://owl-skills.readthedocs.io>** (sources in [`docs/`](docs/index.md);
+build with `cd docs && make html`).
 
 ## Install
 
@@ -42,7 +82,7 @@ Completion covers commands, options, **skill names, authors, tags, topics, remot
 installed skills**. It only reads local data (your SQLite/git library and a small cache that is
 refreshed whenever you list or search a remote); it never contacts a server while you press TAB.
 
-## Quick start (standalone)
+## Local library (standalone)
 
 ```bash
 owl init --author michael            # SQLite database in ~/.owl/skills.sqlite3
@@ -132,7 +172,7 @@ topics: [office]
 ```
 
 `skill.json` may override any of these and add arbitrary extra keys. A skill is identified by
-`author/name`; a bare `name` works whenever it is unambiguous. Check files with `owl validate PATH`,
+`author/name` (the registry directory is simply `skills/<name>/`); a bare `name` works whenever it is unambiguous. Check files with `owl validate PATH`,
 scaffold with `owl new my-skill`.
 
 ## Storage backends
@@ -141,7 +181,7 @@ scaffold with `owl new my-skill`.
 | --- | --- | --- |
 | SQLite | `owl init` | Default. One file, no server. |
 | PostgreSQL | `owl init --backend postgres --location postgresql://u:pw@host/db` | Prefer `--url-env OWL_DB_URL` so the password is not written to the config. |
-| git / plain files | `owl init --backend git [--git-url URL]` | Skills live as `skills/<author>/<name>/{SKILL.md,skill.json,...}` in a working copy. `owl sync` commits, rebases onto the remote and pushes. |
+| git / plain files | `owl init --backend git [--git-url URL]` | Skills live as `skills/<name>/{SKILL.md,skill.json,...}` in a working copy (the author is metadata, not a directory). `owl sync` commits, rebases onto the remote and pushes. |
 
 ```bash
 owl init --backend git --git-url git@github.com:me/my-skills.git
@@ -211,25 +251,36 @@ with status 1. Use `--force` to overwrite deliberately.
 Environment: `OWL_HOME` (default `~/.owl`: config, state, default database), `OWL_DB_URL`,
 `OWL_SERVER_TOKEN`.
 
-## Development
+## Contributing
+
+Contributions of every kind are welcome: **bug reports, feature requests, new registries, skill
+formats and adapters, tests and documentation improvements.**
 
 ```bash
-uv sync --all-extras
-uv run pytest                  # PostgreSQL tests run when OWL_TEST_POSTGRES_URL is set
-uv run ruff check . && uv run ruff format --check . && uv run mypy src
-uv sync --group docs && uv run sphinx-build -W -b html docs docs/_build/html
+git clone https://github.com/MichaelWeissDEV/OWL.git && cd OWL
+uv sync --all-extras --group docs
+uv run ruff check . && uv run ruff format --check . && uv run mypy src && uv run pytest
+uv run sphinx-build -W -b html docs docs/_build/html
 ```
 
-Layout: `src/owl/models.py` (data model, hashing), `parsing.py` (SKILL.md / skill.json),
-`stores/` (SQL, directory, remote - one interface, one shared contract test suite), `server.py`
-(FastAPI), `installer.py`, `sync.py` (pull/push planning), `cli.py`, `completion.py`.
-CI (`.github/workflows/ci.yml`) runs lint, type checks, tests on Linux and macOS, the PostgreSQL
-suite against a service container and a build.
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the quality bar, the test setup (including PostgreSQL)
+and how to propose features. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Skills for the
+default registry go to [owl-registry](https://github.com/MichaelWeissDEV/owl-registry) as pull
+requests.
 
 ## Security notes
 
 * Skill files from git repositories and servers are treated as untrusted: relative paths are
   validated (no absolute paths, `..`), symlinks are never followed, installs only replace
-  directories OWL created.
+  directories OWL created and refuse to overwrite locally modified skills without `--force`.
 * The server binds to `127.0.0.1` by default and is read-only unless a token is set.
 * OWL installs files only - it never executes skill scripts.
+* A SHA-256 hash detects changes; it is **not** a signature and does not authenticate the publisher.
+
+Report vulnerabilities privately - see [`SECURITY.md`](SECURITY.md).
+
+## License
+
+**No license has been chosen yet**, so by default all rights are reserved by the author. The owner has
+to decide (see [`docs/development/licensing.md`](docs/development/licensing.md) for the options)
+before others can legally use, modify or redistribute OWL.

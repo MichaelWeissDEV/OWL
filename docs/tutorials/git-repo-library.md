@@ -27,9 +27,9 @@ synced with origin
 The repository now looks like:
 
 ```text
-skills/me/pdf-tools/SKILL.md
-skills/me/pdf-tools/skill.json
-skills/me/pdf-tools/scripts/extract.py
+skills/pdf-tools/SKILL.md
+skills/pdf-tools/skill.json
+skills/pdf-tools/scripts/extract.py
 ...
 ```
 

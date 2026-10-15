@@ -333,7 +333,7 @@ def export(
     layout: Annotated[
         str,
         typer.Option(
-            help="flat: <out>/<name>/ (like an install dir); repo: <out>/skills/<author>/<name>/"
+            help="flat: <out>/<name>/ (like an install dir); repo: <out>/skills/<name>/ + skill.json"
         ),
     ] = "flat",
     remote: RemoteOpt = None,
@@ -351,9 +351,7 @@ def export(
             raise OwlError("Name at least one skill or pass --all")
         for ref in wanted:
             skill = store.get_ref(ref)
-            dest = (
-                out / skill.name if layout == "flat" else out / "skills" / skill.author / skill.name
-            )
+            dest = out / skill.name if layout == "flat" else out / "skills" / skill.name
             if dest.exists() and not force:
                 raise OwlError(
                     f"{dest} already exists; remove it or use --force (a backup is kept)"

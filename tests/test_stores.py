@@ -87,6 +87,8 @@ def test_facets(any_store, sample_skills):
 
 
 def test_resolve_bare_names(any_store):
+    if isinstance(any_store, DirectoryStore):
+        pytest.skip("directory stores keep names unique (flat layout)")
     any_store.upsert(make_skill("shared", "alice"))
     any_store.upsert(make_skill("shared", "bob"))
     any_store.upsert(make_skill("unique", "alice"))
@@ -119,7 +121,7 @@ def test_cross_store_roundtrip_keeps_sha(sample_skills, tmp_path, remote_store):
 
 def test_directory_store_layout(dir_store, sample_skills):
     dir_store.upsert(sample_skills[1])
-    base = dir_store.root / "skills" / "bob" / "sql-tuner"
+    base = dir_store.root / "skills" / "sql-tuner"
     assert (base / "SKILL.md").is_file()
     assert (base / "skill.json").is_file()
     assert (base / "scripts" / "run.sh").read_bytes().startswith(b"#!/bin/sh")

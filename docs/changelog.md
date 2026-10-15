@@ -5,6 +5,28 @@ Format based on [Keep a Changelog](https://keepachangelog.com/); versions follow
 
 ## Unreleased
 
+### Security / data safety
+
+- `replace_dir` stages new content, renames the old directory aside and restores it on any failure
+  (it used to delete the old directory first).
+- Installations record per-file hashes; reinstall, `update` and `uninstall` refuse locally modified
+  skills unless `--force` (old copies go to `$OWL_HOME/backups/installs`).
+- `DirectoryStore.upsert` is atomic; `export` no longer deletes existing directories.
+- `owl installed --json` no longer crashes (slotted dataclass serialisation).
+
+### Changed (registries)
+
+- **Flat registry layout** `skills/<name>/` (author is metadata); name collisions between authors are
+  refused. `owl registry migrate` / `upgrade` convert old registries; old layouts remain readable.
+- Index format 2 (license, compatibility, size, revision), `stats.json`, `STATS.md`.
+- Registry CI split into a read-only `validate` job and a separate `index` job with write access.
+- New `owl registry check`, `migrate`, `upgrade`.
+
+### Branding
+
+- OWL logo, new README with badges and an alpha notice, `CONTRIBUTING.md`, code of conduct,
+  security policy, issue and pull request templates.
+
 ### Added
 
 - **Registries**: git repositories with a generated `index.json` / `INDEX.md` (with per-skill last update), a CI workflow template and the commands `owl registry init|publish|index|add|list|remove|update`. The default registry `owl` (`MichaelWeissDEV/owl-registry`) is configured on fresh installs.

@@ -1,0 +1,43 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! OWL is alpha. Please do **not** report security problems here -
+        see SECURITY.md. Redact tokens and private URLs.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, what did you get?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The exact commands (use a scratch `OWL_HOME` if you can).
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `owl --version` and `owl doctor`
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS and Python version
+      placeholder: macOS 15, Python 3.13.1
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Storage backend / mode
+      options: [SQLite, git, PostgreSQL server, registry, other]

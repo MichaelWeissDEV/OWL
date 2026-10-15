@@ -105,7 +105,7 @@ def test_git_backend_sync(tmp_path, monkeypatch):
     # a second machine clones the same repo and sees the skill
     clone = tmp_path / "clone"
     gitutil.clone(f"file://{bare}", clone, depth=None)
-    assert (clone / "skills" / "alice" / "gitted" / "SKILL.md").is_file()
+    assert (clone / "skills" / "gitted" / "SKILL.md").is_file()
     # installing straight from the git URL works too
     target = tmp_path / "inst"
     owl("install", f"file://{bare}", "--dir", str(target))
@@ -155,7 +155,7 @@ def test_invalid_hand_edited_skill_is_reported(tmp_path, capsys):
 
     store = DirectoryStore(tmp_path)
     store.upsert(make_skill("ok"))
-    (tmp_path / "skills" / "alice" / "ok" / "SKILL.md").write_text("broken")
+    (tmp_path / "skills" / "ok" / "SKILL.md").write_text("broken")
     DirectoryStore(tmp_path).list()
     assert "ignoring invalid skill" in capsys.readouterr().err
 
@@ -183,7 +183,7 @@ def test_update_outdated_and_export(lib, tmp_path):
     assert "updated" in owl("update", "--dir", str(target)).stdout
     assert owl("outdated", "--dir", str(target)).exit_code == 0
     owl("export", "--all", "-o", str(tmp_path / "out"), "--layout", "repo")
-    assert (tmp_path / "out" / "skills" / "alice" / "git-helper" / "skill.json").is_file()
+    assert (tmp_path / "out" / "skills" / "git-helper" / "skill.json").is_file()
 
 
 def test_stats_and_doctor(lib):

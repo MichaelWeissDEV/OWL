@@ -19,4 +19,5 @@ maintenance
 completion
 configuration
 scripting
+migration
 ```

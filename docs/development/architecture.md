@@ -31,7 +31,7 @@ flowchart TD
 | `parsing.py` | frontmatter, `skill.json` overlay, directory loading, skill discovery |
 | `stores/base.py` | the `SkillStore` ABC, reference resolution, paging helpers |
 | `stores/sql.py` | SQLAlchemy Core implementation, URL normalisation, `pg_trgm` setup |
-| `stores/directory.py` | `skills/<author>/<name>` layout with an in-memory cache |
+| `stores/directory.py` | flat `skills/<name>` layout (legacy `skills/<author>/<name>` readable) with an in-memory cache |
 | `stores/remote.py` | HTTP client implementing the same interface |
 | `stores/registry.py` | read-only store over a registry (git clone cache + `index.json`) |
 | `registry.py` | registry layout, index generation (`updated_at`, INDEX.md), CI workflow template |

@@ -35,7 +35,7 @@ A *store* is where skills live. OWL has three implementations behind one interfa
 | Store | Backend | Notes |
 | --- | --- | --- |
 | `SqlStore` | SQLite or PostgreSQL | via SQLAlchemy |
-| `DirectoryStore` | plain files, git friendly | `skills/<author>/<name>/` |
+| `DirectoryStore` | plain files, git friendly | `skills/<name>/` |
 | `RemoteStore` | an `owl serve` instance | HTTP client |
 
 Because `RemoteStore` implements the same interface, almost every command works the same on the

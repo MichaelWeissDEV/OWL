@@ -69,7 +69,7 @@ Fresh installs know the public registry `owl`:
 
 ```console
 $ owl search commit -r owl
-$ owl install michaelweissdev/conventional-commits -r owl
+$ owl install conventional-commits -r owl
 $ owl install --all -r owl -t opencode        # everything, for OpenCode
 ```
 
