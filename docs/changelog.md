@@ -5,6 +5,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/); versions follow
 
 ## Unreleased
 
+### Added (Phase E – OWL Server, separate project `owl-server`)
+
+- PostgreSQL-backed registry server compatible with the OWL CLI: registries (public/private), immutable
+  hash-addressed skill versions, ETags, collections, statistics, export to git-registry layout.
+- Roles (reader/publisher/admin) per registry; modes public/private/mixed; service and personal tokens;
+  optional local accounts (Argon2id) and OpenID Connect (PKCE, JWKS); audit log; rate limiting.
+- Alembic migrations, health/readiness endpoints, Docker Compose deployment without a dashboard.
+
 ### Added (Phase D – git management)
 
 - Provenance (git URL, ref, commit, path, registry) for imports and installs; `owl lock create|install|verify`

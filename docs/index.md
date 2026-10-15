@@ -69,6 +69,12 @@ CLI, HTTP API, configuration file, data model, database schema, Python API.
 Deploy behind TLS, run in Docker or systemd, back up, secure and troubleshoot.
 :::
 
+:::{grid-item-card} OWL Server
+:link: server/index
+:link-type: doc
+PostgreSQL-backed registry with versions, roles, OIDC and Docker deployment (alpha).
+:::
+
 :::{grid-item-card} Development
 :link: development/index
 :link-type: doc
@@ -109,6 +115,7 @@ guide/index
 tutorials/index
 reference/index
 operations/index
+server/index
 development/index
 faq
 changelog

@@ -3,6 +3,12 @@
 Base path `/api/v1`. All bodies are JSON. The server also publishes an interactive description at
 `/docs` (Swagger UI) and `/openapi.json`.
 
+```{note}
+This page describes the API of `owl serve` (single registry, one write token). **OWL Server** is a
+superset: the same skill endpoints plus registries, versions, ETags, roles and administration - see
+{doc}`../server/api`.
+```
+
 ## Authentication
 
 Send `Authorization: Bearer <token>` where required:
