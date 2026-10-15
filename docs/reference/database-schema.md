@@ -39,6 +39,44 @@ Primary key `(skill_id, kind, value)`, index `ix_skill_labels_value (kind, value
 
 Primary key `(skill_id, path)`.
 
+## Migrations
+
+Applied versions are stored per scope in `owl_migrations(scope, version, name, applied_at)`.
+
+| Scope | Version | Changes |
+| --- | --- | --- |
+| `catalog` | 1 | the three tables above |
+| `catalog` | 2 | `skill_revisions` |
+| `local` | 1 | the personal tables below |
+
+### `skill_revisions` (catalog v2)
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | integer PK | |
+| `author`, `name` | varchar | the skill |
+| `sha256` | varchar(64) | a content hash the skill has had; unique with author and name |
+| `version` | varchar(64) | the version at that time |
+| `recorded_at` | varchar(40) | ISO-8601 UTC |
+
+Deleting a skill keeps its revision history.
+
+### Local database (`$OWL_HOME/local.sqlite3`, scope `local`)
+
+| Table | Purpose |
+| --- | --- |
+| `favorites(ref, added_at)` | favorites |
+| `collections(id, name, description, created_at)`, `collection_skills(collection_id, ref, added_at)` | user collections |
+| `notes(ref, text, updated_at)` | private notes |
+| `metadata_overrides(ref, key, value)` | local-only metadata |
+| `sources(name, kind, location, added_at)` | extra scan sources |
+| `trusted_sources(source, note, added_at)` | your trust labels |
+| `installations(id, ref, name, target, directory, scope, project_root, version, sha256, source, registry, revision, installed_at)` | install inventory (unique per directory) |
+| `operation_history(id, at, operation, ref, status, detail)` | log of installs, updates, imports, syncs |
+| `sync_state(remote, ref, sha256, updated_at)` | pull/push bookmarks (moved here from `state.json` once) |
+| `drafts(id, name, origin, content, problems_json, created_at)` | incomplete imports and invalid edits |
+| `local_meta(key, value)` | internal flags |
+
 ## Behaviour
 
 - `upsert` runs in one transaction: unchanged hash → nothing written; otherwise the row is updated

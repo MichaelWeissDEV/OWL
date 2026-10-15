@@ -244,9 +244,16 @@ with status 1. Use `--force` to overwrite deliberately.
 
 ## Command overview
 
-`init`, `config show|get|set|path`, `new`, `validate`, `add`, `list`, `search`, `show`, `remove`,
-`authors`, `tags`, `topics`, `stats`, `export`, `install`, `uninstall`, `installed`, `outdated`,
-`update`, `targets`, `registry init|publish|index|add|list|remove|update`, `remote add|list|remove|ping`, `pull`, `push`, `diff`, `sync`, `serve`, `doctor`. Every listing supports `--json`. Run `owl COMMAND --help` for all options.
+| Area | Commands |
+| --- | --- |
+| Setup | `init`, `config show\|get\|set\|path`, `doctor`, `db status\|migrate\|backup` |
+| Import / discovery | `add` (`--allow-incomplete`, `--interactive`, `--dry-run`), `scan`, `import`, `new`, `validate`, `drafts` |
+| Library | `list`, `search`, `show`, `remove`, `authors`, `tags`, `topics`, `stats`, `edit`, `metadata`, `favorite`, `collection`, `note`, `history` |
+| Install | `install`, `uninstall`, `installed`, `outdated`, `update`, `targets` |
+| Formats | `export`, `import`, `format list\|show\|add\|remove` |
+| Registries / remotes | `registry init\|publish\|check\|index\|migrate\|upgrade\|add\|list\|remove\|update`, `remote add\|list\|remove\|ping`, `pull`, `push`, `diff`, `sync`, `source`, `trust`, `serve` |
+
+Every listing supports `--json`. Run `owl COMMAND --help` for all options.
 
 Environment: `OWL_HOME` (default `~/.owl`: config, state, default database), `OWL_DB_URL`,
 `OWL_SERVER_TOKEN`.

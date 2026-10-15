@@ -5,6 +5,22 @@ Format based on [Keep a Changelog](https://keepachangelog.com/); versions follow
 
 ## Unreleased
 
+### Added (Phase C – local skill management)
+
+- Versioned migrations with automatic SQLite backups and transactional DDL; catalog schema v2
+  (revision history); local personal SQLite database.
+- `favorite`, `collection`, `note`, `metadata`, `edit`, `drafts`, `history`, `source`, `trust`, `db`,
+  `scan`, `format`, `import`; `install --collection`; `validate REF|--all`.
+- Discovery in directories, monorepos, git, zip archives and markdown files; `add` with strict,
+  `--allow-incomplete`, `--interactive` and `--dry-run`.
+- Export as directory, zip, markdown, command-md and safe declarative templates.
+- Search: sort, offset, favorite/installed/collection filters, status flags in table and JSON.
+
+### Fixed
+
+- A markdown frontmatter closing delimiter must now start at column 0 (an indented `---` inside a
+  YAML block scalar used to end the frontmatter early).
+
 ### Security / data safety
 
 - `replace_dir` stages new content, renames the old directory aside and restores it on any failure

@@ -25,7 +25,7 @@ def split_frontmatter(content: str) -> tuple[dict[str, Any], str, list[str]]:
     lines = content.splitlines(keepends=True)
     if lines[0].strip() != "---":
         return {}, content, ["Invalid YAML frontmatter delimiter"]
-    closing = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
+    closing = next((i for i in range(1, len(lines)) if lines[i].rstrip() == "---"), None)
     if closing is None:
         return {}, content, ["Unclosed YAML frontmatter"]
     raw = "".join(lines[1:closing])

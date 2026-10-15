@@ -5,6 +5,9 @@
 
 skill-format
 authoring
+local-library
+importing
+formats
 standalone
 git-backend
 postgres

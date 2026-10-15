@@ -35,6 +35,20 @@ $ owl search pdf -r team -r public            # two specific remotes
 $ owl search "" -t docs --json | jq -r '.[].name'
 ```
 
+## Local flags, filters, sorting and paging
+
+| Option | Meaning |
+| --- | --- |
+| `--favorites` | only your favorites |
+| `--installed` | only skills with a recorded installation |
+| `--collection NAME` | only members of a local collection |
+| `--sort relevance\|name\|updated\|version` | ordering (`updated` = newest first); default is relevance |
+| `--limit N`, `--offset N` | paging |
+
+Tables mark `★` favorites, `✓` installed and `↑` update available (the installed hash differs from
+the listed one, according to the local inventory). `--json` adds `favorite`, `installed` and
+`update_available` to each result.
+
 ## Listing facets
 
 ```console

@@ -164,7 +164,7 @@ def add(
             if as_json:
                 typer.echo(json.dumps(_result(plan, applied=False), indent=2))
             return
-        if interactive and not yes and any(i.action in ("add", "update", "draft") for i in plan):
+        if interactive and not yes and any(i.generated or i.action == "draft" for i in plan):
             typer.confirm("Apply these changes?", default=True, abort=True)
         outcome = _apply(plan, store)
     finally:

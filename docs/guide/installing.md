@@ -26,6 +26,12 @@ For repositories (git URL or directory) with several skills you must choose: `--
 (repeatable) or `--all`. A repository with exactly one skill needs neither. Several sources may be
 given at once (`owl install a/x b/y https://…`).
 
+### A local collection
+
+```console
+$ owl install --collection security -t opencode -p
+```
+
 ### Everything from a registry or server
 
 Without a source, `--all` installs every skill of the selected `--remote` (a registry or a server),

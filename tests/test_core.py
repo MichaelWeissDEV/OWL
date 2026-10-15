@@ -319,3 +319,11 @@ def test_logo_assets_exist_and_are_referenced():
     assert (root / "assets/owl.png").stat().st_size > 100_000  # the original, not a thumbnail
     assert "assets/owl-256.png" in (root / "README.md").read_text()
     assert "_static/owl.png" in (root / "docs/index.md").read_text()
+
+
+def test_indented_dashes_inside_yaml_do_not_end_the_frontmatter():
+    from owl.parsing import split_frontmatter
+
+    text = "---\nname: x\ndescription: |\n  first\n  ---\n  second\n---\nbody\n"
+    fm, body, problems = split_frontmatter(text)
+    assert problems == [] and fm["description"] == "first\n---\nsecond\n" and body == "body\n"

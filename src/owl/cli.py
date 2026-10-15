@@ -653,6 +653,10 @@ def install(
         list[str] | None,
         typer.Option("--topic", help="With --all: only this topic.", autocompletion=complete_topic),
     ] = None,
+    collection: Annotated[
+        str | None,
+        typer.Option("--collection", help="Install every skill of this local collection."),
+    ] = None,
     target: TargetOpt = None,
     directory: DirOpt = None,
     project: ProjectOpt = False,
@@ -666,6 +670,13 @@ def install(
     cfg = load_config()
     destinations = _target_dirs(cfg, target, directory, project)
     chosen: list[tuple[Skill, str]] = []
+    if collection:
+        from owl.localdb import LocalDB
+
+        with LocalDB() as db:
+            sources = [*(sources or []), *db.collection_members(collection)]
+        if not sources:
+            raise OwlError(f"Collection '{collection}' is empty")
     if not sources:
         if not everything:
             raise OwlError("Name at least one skill or source, or use --all with --remote")

@@ -116,9 +116,13 @@ def skill_fields(skill: Skill) -> dict[str, Any]:
 
 
 def _yaml_scalar(value: Any) -> str:
-    dumped = yaml.safe_dump(value, default_flow_style=True, allow_unicode=True, width=10**6)
-    dumped = dumped.strip()
-    return dumped[:-4].rstrip() if dumped.endswith("\n...") else dumped.removesuffix("...").strip()
+    """A single-line YAML value. Multi-line results fall back to a JSON string (valid YAML), so a
+    value can never contain a line that looks like a frontmatter delimiter."""
+    dumped = yaml.safe_dump(value, default_flow_style=True, allow_unicode=True, width=10**6).strip()
+    dumped = (
+        dumped[:-4].rstrip() if dumped.endswith("\n...") else dumped.removesuffix("...").strip()
+    )
+    return json.dumps(value, ensure_ascii=False) if "\n" in dumped else dumped
 
 
 def _apply_filter(value: Any, name: str) -> str:
