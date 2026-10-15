@@ -16,7 +16,7 @@ from rich.markdown import Markdown
 from rich.markup import escape
 from rich.table import Table
 
-from owl import __version__, gitutil, paths
+from owl import __version__, audit, gitutil, paths
 from owl.completion import (
     complete_author,
     complete_installed,
@@ -140,30 +140,64 @@ def _pick_remote(cfg: Config, name: str | None) -> str:
     raise OwlError("No remote selected: pass --remote NAME (see: owl remote list)")
 
 
+def _local_flags() -> tuple[set[str], dict[str, set[str]]]:
+    """Favorites and recorded installations (ref -> installed hashes) from the local database."""
+    try:
+        from owl.localdb import LocalDB
+
+        with LocalDB() as db:
+            installed: dict[str, set[str]] = {}
+            for row in db.installations():
+                installed.setdefault(row["ref"], set()).add(row["sha256"])
+            return set(db.favorites()), installed
+    except Exception:  # noqa: BLE001 - flags are decoration, never an error
+        return set(), {}
+
+
+def _flags(s: SkillSummary, favorites: set[str], installed: dict[str, set[str]]) -> dict[str, bool]:
+    hashes = installed.get(s.ref, set())
+    return {
+        "favorite": s.ref in favorites,
+        "installed": bool(hashes),
+        "update_available": bool(hashes) and s.sha256 not in hashes,
+    }
+
+
 def _summary_table(rows: list[SkillSummary], show_source: bool) -> Table:
+    favorites, installed = _local_flags()
     table = Table(show_lines=False, header_style="bold")
     if show_source:
         table.add_column("Source", style="magenta")
     table.add_column("Skill", style="cyan", no_wrap=True)
+    table.add_column("", no_wrap=True)
     table.add_column("Version")
     table.add_column("Description", overflow="fold")
     table.add_column("Tags", style="green")
     for s in rows:
+        f = _flags(s, favorites, installed)
+        marks = ("★" if f["favorite"] else "") + (
+            "↑" if f["update_available"] else "✓" if f["installed"] else ""
+        )
         description = s.description if len(s.description) <= 100 else s.description[:97] + "..."
-        cells = [s.ref, s.version, description, ", ".join(s.tags)]
+        cells = [s.ref, marks, s.version, description, ", ".join(s.tags)]
         table.add_row(*([s.source or ""] + cells if show_source else cells))
     return table
 
 
 def _print_summaries(rows: list[SkillSummary], as_json: bool, show_source: bool = False) -> None:
     if as_json:
-        data = [{**s.to_dict(), "source": s.source} for s in rows]
+        favorites, installed = _local_flags()
+        data = [
+            {**s.to_dict(), "source": s.source, **_flags(s, favorites, installed)} for s in rows
+        ]
         typer.echo(json.dumps(data, indent=2))
     elif not rows:
         err_console.print("[yellow]No skills found.[/yellow]")
     else:
         console.print(_summary_table(rows, show_source))
-        err_console.print(f"[dim]{len(rows)} skill(s)[/dim]")
+        err_console.print(
+            f"[dim]{len(rows)} skill(s)  ★ favorite  ✓ installed  ↑ update available[/dim]"
+        )
 
 
 TargetOpt = Annotated[
@@ -311,63 +345,87 @@ def new(
 
 @app.command()
 def validate(
-    source: Annotated[Path, typer.Argument(help="A skill directory or a tree of skills.")] = Path(
-        "."
-    ),
+    target: Annotated[
+        str | None,
+        typer.Argument(
+            help="A skill directory, a tree of skills or a library skill (author/name). "
+            "Default: the current directory.",
+            autocompletion=complete_ref,
+        ),
+    ] = None,
+    everything: Annotated[
+        bool, typer.Option("--all", help="Validate every skill in the local library (and drafts).")
+    ] = False,
+    as_json: JsonOpt = False,
 ) -> None:
-    """Check SKILL.md files without touching any store."""
+    """Check skills against the Agent Skills rules without changing anything."""
+    from owl.models import validate_skill
+    from owl.parsing import split_frontmatter
+
     cfg = load_config()
-    results = load_skills(source.expanduser(), cfg.author)
-    if not results:
-        raise OwlError(f"No SKILL.md found below {source}")
-    failed = 0
-    for r in results:
-        if r.valid:
-            console.print(f"[green]OK[/green]   {r.skill.ref}  ({r.path})")
-            for warning in r.warnings:
-                console.print(f"       [yellow]warning:[/yellow] {escape(warning)}")
-        else:
-            failed += 1
-            console.print(f"[red]FAIL[/red] {r.path}")
-            for problem in r.problems:
-                console.print(f"       - {escape(problem)}")
+    rows: list[dict] = []
+
+    def library_problems(skill) -> list[str]:  # type: ignore[no-untyped-def]
+        _fm, _body, fm_problems = split_frontmatter(skill.content)
+        return [*fm_problems, *[p for p in validate_skill(skill) if p not in fm_problems]]
+
+    if everything or (target and not Path(target).expanduser().exists()):
+        with _local() as store:
+            if everything:
+                skills = [store.get_ref(s.ref) for s in store.list()]
+            else:
+                assert target is not None
+                skills = [store.get_ref(target)]
+        for sk in skills:
+            rows.append(
+                {"name": sk.ref, "path": None, "problems": library_problems(sk), "warnings": []}
+            )
+        if everything:
+            from owl.localdb import LocalDB
+
+            with LocalDB() as db:
+                for d in db.drafts():
+                    rows.append(
+                        {
+                            "name": f"draft #{d['id']} {d['name']}",
+                            "path": d["origin"],
+                            "problems": d["problems"],
+                            "warnings": [],
+                        }
+                    )
+        if not rows:
+            raise OwlError("The local library is empty")
+    else:
+        results = load_skills(Path(target or ".").expanduser(), cfg.author)
+        if not results:
+            raise OwlError(f"No SKILL.md found below {target or '.'}")
+        rows = [
+            {
+                "name": r.skill.ref,
+                "path": str(r.path),
+                "problems": r.problems,
+                "warnings": r.warnings,
+            }
+            for r in results
+        ]
+    failed = sum(1 for r in rows if r["problems"])
+    if as_json:
+        typer.echo(json.dumps({"ok": not failed, "skills": rows}, indent=2))
+    else:
+        for r in rows:
+            where = f"  ({r['path']})" if r["path"] else ""
+            if not r["problems"]:
+                console.print(f"[green]OK[/green]   {r['name']}{where}")
+                for warning in r["warnings"]:
+                    console.print(f"       [yellow]warning:[/yellow] {escape(warning)}")
+            else:
+                console.print(f"[red]FAIL[/red] {r['name']}{where}")
+                for problem in r["problems"]:
+                    console.print(f"       - {escape(problem)}")
     raise typer.Exit(1 if failed else 0)
 
 
 # -- local library -----------------------------------------------------------------------
-
-
-@app.command()
-def add(
-    source: Annotated[str, typer.Argument(help="Directory with SKILL.md files, or a git URL.")],
-    ref: Annotated[str | None, typer.Option("--ref", help="Branch or tag (git sources).")] = None,
-    subdir: Annotated[str | None, typer.Option(help="Only look below this sub-directory.")] = None,
-    author: Annotated[str | None, typer.Option(help="Author for skills that declare none.")] = None,
-    skill: Annotated[
-        list[str] | None, typer.Option("--skill", "-s", help="Only add these skill names.")
-    ] = None,
-) -> None:
-    """Import skills from a directory or git repository into the local store."""
-    cfg = load_config()
-    added = 0
-    with load_source(source, default_author=author or cfg.author, ref=ref, subdir=subdir) as found:
-        if not found:
-            raise OwlError(f"No SKILL.md found in {source}")
-        with _local() as store:
-            for result in found:
-                if skill and result.skill.name not in skill:
-                    continue
-                if not result.valid:
-                    err_console.print(
-                        f"[yellow]skipped[/yellow] {result.path}: {escape('; '.join(result.problems))}"
-                    )
-                    continue
-                stored = store.upsert(result.skill)
-                added += 1
-                console.print(f"[green]added[/green] {stored.ref} {stored.version}")
-            update_completion_cache(store.list())
-    if not added:
-        raise OwlError("Nothing was added")
 
 
 @app.command("list")
@@ -413,10 +471,37 @@ def search(
         bool, typer.Option("--all", help="Search the local store and every configured remote.")
     ] = False,
     limit: Annotated[int, typer.Option(help="Maximum results per store.")] = 50,
+    offset: Annotated[int, typer.Option(help="Skip this many results (paging).")] = 0,
+    sort: Annotated[
+        str, typer.Option(help="relevance (default), name, updated (newest first) or version.")
+    ] = "relevance",
+    favorites_only: Annotated[
+        bool, typer.Option("--favorites", help="Only your favorites.")
+    ] = False,
+    installed_only: Annotated[
+        bool, typer.Option("--installed", help="Only skills you installed (as recorded).")
+    ] = False,
+    collection: Annotated[
+        str | None, typer.Option("--collection", help="Only skills in this local collection.")
+    ] = None,
     as_json: JsonOpt = False,
 ) -> None:
-    """Search skills by text, author, tags and topics - locally or on remotes."""
-    q = SearchQuery(text=query, author=author, tags=tag or [], topics=topic or [], limit=limit)
+    """Search skills by text, author, tags and topics - locally or on remotes.
+
+    Words are ANDed over name, description, author, tags, topics and (where available) the text.
+    """
+    if sort not in ("relevance", "name", "updated", "version"):
+        raise OwlError("--sort must be relevance, name, updated or version")
+    post_filter = favorites_only or installed_only or bool(collection)
+    wide = bool(post_filter) or sort != "relevance"
+    q = SearchQuery(
+        text=query,
+        author=author,
+        tags=tag or [],
+        topics=topic or [],
+        limit=100000 if wide else offset + limit,
+        offset=0 if post_filter else 0,
+    )
     rows: list[SkillSummary] = []
     with _stores(remote, local, everything) as stores:
         for store in stores:
@@ -426,6 +511,28 @@ def search(
                 if len(stores) == 1:
                     raise
                 err_console.print(f"[yellow]warning:[/yellow] {escape(str(exc))}")
+    if post_filter:
+        from owl.localdb import LocalDB
+
+        favorites, installed = _local_flags()
+        allowed: set[str] | None = None
+        if collection:
+            with LocalDB() as db:
+                allowed = set(db.collection_members(collection))
+        rows = [
+            r
+            for r in rows
+            if (not favorites_only or r.ref in favorites)
+            and (not installed_only or r.ref in installed)
+            and (allowed is None or r.ref in allowed)
+        ]
+    if sort == "name":
+        rows.sort(key=lambda r: (r.name, r.author))
+    elif sort == "updated":
+        rows.sort(key=lambda r: r.updated_at or "", reverse=True)
+    elif sort == "version":
+        rows.sort(key=lambda r: r.version, reverse=True)
+    rows = rows[offset : offset + limit] if len(stores) == 1 else rows
     update_completion_cache(rows)
     _print_summaries(rows, as_json, show_source=len(stores) > 1)
 
@@ -596,6 +703,14 @@ def install(
     for item, origin in chosen:
         for tname, tdir in destinations:
             dest = install_skill(item, tdir, source=origin, force=force)
+            audit.record_install(
+                item,
+                target=tname,
+                directory=dest,
+                source=origin,
+                project=project,
+                custom=bool(directory) or tname == "custom",
+            )
             console.print(f"[green]installed[/green] {item.ref} -> {dest}  [dim]({tname})[/dim]")
 
 
@@ -614,6 +729,7 @@ def uninstall(
         for name in names:
             try:
                 dest = uninstall_skill(name, tdir, force=force)
+                audit.forget_install(None, dest, tname)
             except OwlError as exc:
                 err_console.print(f"[yellow]{tname}:[/yellow] {escape(str(exc))}")
                 continue
@@ -751,12 +867,14 @@ def _transfer(
                 assert src_skill is not None
                 dest.upsert(src_skill)
                 set_synced(name, full, src_skill.sha256)
+                audit.record(direction, full, "ok", f"{name}: {plan.reason}")
                 console.print(f"[green]{direction}ed[/green] {full} ({plan.reason})")
             elif plan.action == "noop":
                 set_synced(name, full, l_skill.sha256 if l_skill else None)
                 console.print(f"[dim]ok[/dim]      {full} ({plan.reason})")
             else:
                 console.print(f"[yellow]skipped[/yellow] {full}: {plan.reason}")
+                audit.record(direction, full, "skipped", f"{name}: {plan.reason}")
                 conflicts += plan.reason.startswith("diverged")
         update_completion_cache(local.list())
     finally:
@@ -873,7 +991,7 @@ def serve(
         store.close()
 
 
-from owl import cli_registry, cli_tools  # noqa: E402,F401  (register further commands)
+from owl import cli_formats, cli_import, cli_local, cli_registry, cli_tools  # noqa: E402,F401
 
 
 def main() -> None:

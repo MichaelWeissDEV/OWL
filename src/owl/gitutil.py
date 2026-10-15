@@ -129,3 +129,9 @@ def fetch_reset(path: Path, ref: str | None = None) -> None:
     """Update a shallow clone to the latest commit of *ref* (default: the remote's HEAD)."""
     _git(["fetch", "--quiet", "--depth", "1", "origin", ref or "HEAD"], cwd=path)
     _git(["reset", "--quiet", "--hard", "FETCH_HEAD"], cwd=path)
+
+
+def head_commit(path: Path) -> str | None:
+    """SHA of ``HEAD`` in the repository at *path*, or ``None``."""
+    proc = _git(["rev-parse", "HEAD"], cwd=path, check=False)
+    return proc.stdout.strip() if proc.returncode == 0 else None

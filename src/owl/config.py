@@ -155,17 +155,17 @@ def save_state(state: dict[str, Any]) -> None:
 
 def get_synced(remote: str, ref: str) -> str | None:
     """SHA of *ref* as of the last successful pull/push with *remote*."""
-    return load_state().get("synced", {}).get(remote, {}).get(ref)
+    from owl.localdb import LocalDB
+
+    with LocalDB() as db:
+        return db.get_synced(remote, ref)
 
 
 def set_synced(remote: str, ref: str, sha: str | None) -> None:
-    state = load_state()
-    bucket = state.setdefault("synced", {}).setdefault(remote, {})
-    if sha is None:
-        bucket.pop(ref, None)
-    else:
-        bucket[ref] = sha
-    save_state(state)
+    from owl.localdb import LocalDB
+
+    with LocalDB() as db:
+        db.set_synced(remote, ref, sha)
 
 
 def update_completion_cache(summaries: list[Any]) -> None:

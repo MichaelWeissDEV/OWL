@@ -29,8 +29,9 @@ from sqlalchemy import (
     select,
     update,
 )
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 
+from owl.migrations import Migration, Migrator
 from owl.models import InvalidSkill, SearchQuery, Skill, SkillSummary, validate_skill
 from owl.stores.base import FACET_KINDS, SkillStore
 
@@ -71,6 +72,49 @@ files_t = Table(
 )
 
 
+revisions_t = Table(
+    "skill_revisions",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("author", String(128), nullable=False),
+    Column("name", String(64), nullable=False),
+    Column("sha256", String(64), nullable=False),
+    Column("version", String(64), nullable=False),
+    Column("recorded_at", String(40), nullable=False),
+    UniqueConstraint("author", "name", "sha256", name="uq_revision"),
+    Index("ix_skill_revisions_ref", "author", "name"),
+)
+
+
+def _v1_baseline(conn: Connection) -> None:
+    for table in (skills_t, labels_t, files_t):
+        table.create(conn, checkfirst=True)
+
+
+def _v2_revisions(conn: Connection) -> None:
+    """Remember every content hash a skill has had (history of known revisions)."""
+    revisions_t.create(conn, checkfirst=True)
+    now = datetime.now(UTC).isoformat(timespec="seconds")
+    conn.execute(
+        insert(revisions_t).from_select(
+            ["author", "name", "sha256", "version", "recorded_at"],
+            select(
+                skills_t.c.author,
+                skills_t.c.name,
+                skills_t.c.sha256,
+                skills_t.c.version,
+                literal(now),
+            ),
+        )
+    )
+
+
+CATALOG_MIGRATIONS = [
+    Migration(1, "baseline: skills, labels, files", _v1_baseline),
+    Migration(2, "skill revisions history", _v2_revisions),
+]
+
+
 def normalize_db_url(url: str) -> str:
     """Turn a path or a short URL into a SQLAlchemy URL.
 
@@ -109,7 +153,8 @@ class SqlStore(SkillStore):
         else:
             kwargs["pool_pre_ping"] = True
         self.engine: Engine = create_engine(self.url, **kwargs)
-        metadata.create_all(self.engine)
+        self.migrator = Migrator(self.engine, "catalog", CATALOG_MIGRATIONS, legacy_table="skills")
+        self.migrator.upgrade()
         if self.engine.dialect.name == "postgresql":
             self._create_trigram_indexes()
 
@@ -146,6 +191,23 @@ class SqlStore(SkillStore):
             ).one_or_none()
             if row is not None and row.sha256 == skill.sha256:
                 return self._load(conn, row.id)
+            known = conn.execute(
+                select(revisions_t.c.id).where(
+                    revisions_t.c.author == skill.author,
+                    revisions_t.c.name == skill.name,
+                    revisions_t.c.sha256 == skill.sha256,
+                )
+            ).first()
+            if known is None:
+                conn.execute(
+                    insert(revisions_t).values(
+                        author=skill.author,
+                        name=skill.name,
+                        sha256=skill.sha256,
+                        version=skill.version,
+                        recorded_at=now,
+                    )
+                )
             values = dict(
                 version=skill.version,
                 description=skill.description,
@@ -305,6 +367,18 @@ class SqlStore(SkillStore):
     def count(self) -> int:
         with self.engine.connect() as conn:
             return int(conn.execute(select(func.count()).select_from(skills_t)).scalar_one())
+
+    def revisions(self, author: str, name: str) -> list[dict[str, str]]:
+        """Known content hashes of a skill, oldest first."""
+        with self.engine.connect() as conn:
+            rows = conn.execute(
+                select(revisions_t)
+                .where(revisions_t.c.author == author.lower(), revisions_t.c.name == name)
+                .order_by(revisions_t.c.id)
+            ).all()
+        return [
+            {"sha256": r.sha256, "version": r.version, "recorded_at": r.recorded_at} for r in rows
+        ]
 
     def close(self) -> None:
         self.engine.dispose()

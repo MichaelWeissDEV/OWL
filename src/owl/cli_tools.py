@@ -12,7 +12,7 @@ import typer
 from rich.markup import escape
 from rich.table import Table
 
-from owl import __version__, gitutil, paths
+from owl import __version__, audit, gitutil, paths
 from owl.cli import (
     DirOpt,
     JsonOpt,
@@ -34,8 +34,7 @@ from owl.config import (
     load_config,
     save_config,
 )
-from owl.fsutil import replace_dir
-from owl.installer import Installed, backup_root, install_skill, list_installed
+from owl.installer import Installed, install_skill, list_installed
 from owl.models import NotFound, OwlError, Skill
 from owl.sources import load_source
 from owl.stores import open_remote, open_store
@@ -231,7 +230,16 @@ def update(
         elif dry_run:
             console.print(f"[cyan]would update[/cyan] {label} {item.version} -> {new.version}")
         else:
-            install_skill(new, tdir, source=item.source, force=bool(modified))
+            dest = install_skill(new, tdir, source=item.source, force=bool(modified))
+            audit.record_install(
+                new,
+                target=tname,
+                directory=dest,
+                source=item.source,
+                project=project,
+                custom=bool(directory) or tname == "custom",
+            )
+            audit.record("update", new.ref, "ok", f"{item.version} -> {new.version}")
             console.print(f"[green]updated[/green] {label} {item.version} -> {new.version}")
             changed += 1
     console.print(f"{changed} skill(s) updated")
@@ -320,49 +328,6 @@ def stats(remote: RemoteOpt = None, local: LocalOpt = False, as_json: JsonOpt = 
     for title, key in (("Top authors", "authors"), ("Top tags", "tags"), ("Top topics", "topics")):
         top = ", ".join(f"{v} ({n})" for v, n in data[key][:10]) or "-"
         console.print(f"[green]{title}:[/green] {top}")
-
-
-@app.command()
-def export(
-    refs: Annotated[list[str] | None, typer.Argument(autocompletion=complete_ref)] = None,
-    out: Annotated[Path, typer.Option("--out", "-o", help="Target directory.")] = Path("export"),
-    everything: Annotated[bool, typer.Option("--all", help="Export every skill.")] = False,
-    force: Annotated[
-        bool, typer.Option("--force", help="Replace existing target directories (kept as backup).")
-    ] = False,
-    layout: Annotated[
-        str,
-        typer.Option(
-            help="flat: <out>/<name>/ (like an install dir); repo: <out>/skills/<name>/ + skill.json"
-        ),
-    ] = "flat",
-    remote: RemoteOpt = None,
-    local: LocalOpt = False,
-) -> None:
-    """Write skills as plain files (e.g. to turn a database into a git repository)."""
-    if layout not in ("flat", "repo"):
-        raise OwlError("--layout must be 'flat' or 'repo'")
-    with _one(remote, local) as store:
-        if everything:
-            wanted = [s.ref for s in store.list()]
-        elif refs:
-            wanted = refs
-        else:
-            raise OwlError("Name at least one skill or pass --all")
-        for ref in wanted:
-            skill = store.get_ref(ref)
-            dest = out / skill.name if layout == "flat" else out / "skills" / skill.name
-            if dest.exists() and not force:
-                raise OwlError(
-                    f"{dest} already exists; remove it or use --force (a backup is kept)"
-                )
-            files = dict(skill.files)
-            files["SKILL.md"] = skill.content.encode("utf-8")
-            if layout == "repo":
-                meta = json.dumps(skill.meta(), indent=2, ensure_ascii=False) + "\n"
-                files["skill.json"] = meta.encode("utf-8")
-            replace_dir(dest, files, keep_backup_in=backup_root() if dest.exists() else None)
-            console.print(f"[green]exported[/green] {skill.ref} -> {dest}")
 
 
 def _check_row(table: Table, status: str, what: str, detail: str = "") -> None:
